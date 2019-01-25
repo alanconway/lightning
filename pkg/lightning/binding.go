@@ -138,16 +138,3 @@ func (bs *Bindings) Sink(c Config) (s Sink, err error) {
 	bs.Log.Error("Error creating sink", zap.Error(err), zap.ByteString("config", c.Bytes()))
 	return
 }
-
-// Adapter configures a Source and Sink and creates an Adapter for the two.
-func (bs *Bindings) Adapter(sourceConfig, sinkConfig Config) (*Adapter, error) {
-	source, err := bs.Source(sourceConfig)
-	if err != nil {
-		return nil, err
-	}
-	sink, err := bs.Sink(sinkConfig)
-	if err != nil {
-		return nil, err
-	}
-	return &Adapter{Source: source, Sink: sink}, nil
-}

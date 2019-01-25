@@ -115,20 +115,19 @@ func main() {
 	bindings.SetLogger(makeLogger())
 	defer bindings.Log.Sync()
 
-	a, err := bindings.Adapter(
-		config("-source", "LIGHTNING_SOURCE", source),
-		config("-sink", "LIGHTNING_SINK", sink),
-	)
+	src, err := bindings.Source(config("-source", "LIGHTNING_SOURCE", source))
+	snk, err := bindings.Sink(config("-sink", "LIGHTNING_SINK", sink))
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+
 	go func() {
 		s := <-sig
 		bindings.Log.Debug("Received signal " + s.String())
-		a.Close()
+		src.Close()
 	}()
 
-	if err = a.Run(); err != nil {
+	if err = lightning.Transfer(src, snk); err != nil {
 		log.Fatal("Run error: ", err)
 	}
 }

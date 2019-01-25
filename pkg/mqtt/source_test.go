@@ -60,9 +60,7 @@ func TestSource(tt *testing.T) {
 	sc := SourceConfig{Filters: topics, Capacity: 100, ClientID: os.Args[0]}
 	sc.URL.URL = &url.URL{Host: broker.Addr, User: url.UserPassword("testuser", "testpassword")}
 	source := NewSource(&sc, zap.NewNop())
-	sink := lightning.MakeChanSink(100)
-	adapter := &lightning.Adapter{Source: source, Sink: sink}
-	go adapter.Run()
+	go source.Run()
 
 	s, err := newSender(sc.URL.URL)
 	t.RequireEqual(nil, err)
@@ -72,7 +70,7 @@ func TestSource(tt *testing.T) {
 	for msg == nil {
 		t.RequireNil(s.send("foo", "hello", 0))
 		select {
-		case msg = <-sink:
+		case msg = <-source.Incoming():
 			e, err := msg.Event()
 			t.ExpectNil(err)
 			t.ExpectEqual("hello", e["data"])
@@ -85,7 +83,7 @@ func TestSource(tt *testing.T) {
 	}
 	var received []float64
 	for range sent {
-		e, err := (<-sink).Event()
+		e, err := (<-source.Incoming()).Event()
 		t.ExpectNil(err)
 		if e["data"] != "hello" { // Ignore surplus "hello" messages
 			received = append(received, e["data"].(float64))

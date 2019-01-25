@@ -48,17 +48,15 @@ func TestSource(tt *testing.T) {
 	go srv.Run()
 	defer func() { t.ExpectNil(srv.Close()) }()
 
-	sink := lightning.MakeChanSink(100)
 	logger, _ := zap.NewDevelopment()
 
 	sc := SourceConfig{Addresses: []string{"foo"}, Capacity: 100}
 	sc.URL.URL = &url.URL{Host: srv.Host()}
 	src := NewSource(&sc, logger)
-
-	go (&lightning.Adapter{Source: src, Sink: sink}).Run()
+	go src.Run()
 
 	// First message should be binary
-	m := <-sink
+	m := <-src.Incoming()
 	s := m.Structured()
 	t.ExpectEqual((*lightning.Structured)(nil), s)
 	e, err := m.Event()
@@ -68,7 +66,7 @@ func TestSource(tt *testing.T) {
 	t.ExpectEqual("binary", string(b))
 
 	// Next message should be structured
-	m = <-sink
+	m = <-src.Incoming()
 	s = m.Structured()
 	t.ExpectEqual(lightning.JSONFormat.Name(), s.Format.Name())
 	e, err = s.Event()

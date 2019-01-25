@@ -68,36 +68,12 @@ type Sink interface {
 	Close()
 }
 
-// Adapter connects a Source to a Sink.
-type Adapter struct {
-	Source Source
-	Sink   Sink
-}
-
-// Run calls Source.Run() and transfers messages from Source to Sink
-// until Source.Run() returns.
-func (a *Adapter) Run() error {
+// Transfer transfers events from source to sink until source is closed.
+func Transfer(source Source, sink Sink) error {
 	go func() {
-		for m := range a.Source.Incoming() {
-			a.Sink.Send(m)
+		for m := range source.Incoming() {
+			sink.Send(m)
 		}
 	}()
-	return a.Source.Run()
+	return source.Run()
 }
-
-// Close calls Source.Close() and Sink.Close()
-func (a *Adapter) Close() {
-	a.Source.Close()
-	a.Sink.Close()
-}
-
-// ChanSink is a trivial sink that is just a channel.
-//
-// Allows an application to process events in memory.
-type ChanSink chan Message
-
-func MakeChanSink(cap int) ChanSink { return make(ChanSink, cap) }
-
-// Send does not call m.Finish(), application must do so when finished.
-func (s ChanSink) Send(m Message) { s <- m }
-func (s ChanSink) Close()         { close(s) }
