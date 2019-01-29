@@ -51,14 +51,13 @@ func (m *testMsg) Finish(err error) { m.finished = true; m.err = err }
 func TestSink(tt *testing.T) {
 	t := test.New(tt)
 
-	hc := make(httptest.HTTPChan, 1)
-	hs := httptest.StartHTTPServer(t, hc)
-	defer hs.Stop()
+	hs := httptest.NewServer()
+	defer hs.Close()
 
 	s := &Sink{URL: &url.URL{Scheme: "http", Host: hs.Addr}, Client: &http.Client{}, Log: zap.NewNop()}
 	go s.Send(&testMsg{e: lightning.Event{"specversion": "2.0", "data": "hello"}})
 
-	got := <-hc
+	got := <-hs.Incoming
 	t.ExpectEqual(lightning.JSONFormat.Name(), got.Header.Get("Content-Type"))
 	t.ExpectEqual(`{"data":"hello","specversion":"2.0"}`, string(got.Body))
 }

@@ -21,48 +21,37 @@ package httptest
 
 import (
 	"io/ioutil"
-	"log"
 	"net"
 	"net/http"
-	"os"
-
-	"github.com/alanconway/lightning/internal/pkg/test"
 )
 
-type HTTPServer struct {
-	server   http.Server
-	listener net.Listener
-	Addr     string
-}
-
-func StartHTTPServer(t test.TB, h http.Handler) *HTTPServer {
-	l, err := net.Listen("tcp", ":0")
-	t.RequireNil(err)
-	hs := &HTTPServer{
-		server: http.Server{
-			Handler:  h,
-			ErrorLog: log.New(os.Stderr, "test/http[error]:", log.LstdFlags),
-		},
-		listener: l,
-		Addr:     l.Addr().String(),
-	}
-	go hs.server.Serve(hs.listener)
-	return hs
-}
-
-type HTTPRequest struct {
+type Request struct {
 	*http.Request
-	Body []byte
+	Body []byte // Save body bytes
 }
 
-type HTTPChan chan *HTTPRequest
+type Server struct {
+	http.Server
+	Addr     string
+	Incoming chan *Request
+}
 
-func (c HTTPChan) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	b, err := ioutil.ReadAll(r.Body)
+func NewServer() *Server {
+	l, err := net.Listen("tcp", ":0")
 	if err != nil {
 		panic(err)
 	}
-	c <- &HTTPRequest{Request: r, Body: b}
+	s := &Server{
+		Addr:     l.Addr().String(),
+		Incoming: make(chan *Request),
+	}
+	s.Server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			panic(err)
+		}
+		s.Incoming <- &Request{Request: r, Body: b}
+	})
+	go s.Serve(l)
+	return s
 }
-
-func (hs *HTTPServer) Stop() { hs.server.Close() }

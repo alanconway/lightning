@@ -49,18 +49,16 @@ func killWait(cmd *exec.Cmd) {
 }
 
 func TestMQTTtoHTTP(tt *testing.T) {
-	n := 10
 	t := test.New(tt)
 
 	mqtt := mqtttest.StartMQTTBroker(t)
 	defer mqtt.Stop()
 
-	hc := make(httptest.HTTPChan, n)
-	http := httptest.StartHTTPServer(t, hc)
-	defer http.Stop()
+	hs := httptest.NewServer()
+	defer hs.Close()
 
 	cmd := lightningServer(
-		"-sink", fmt.Sprintf(`{"binding":"http", "url": "%s"}`, "http://"+http.Addr),
+		"-sink", fmt.Sprintf(`{"binding":"http", "url": "%s"}`, "http://"+hs.Addr),
 		"-source", fmt.Sprintf(`{"binding":"mqtt", "url": "%s", "filters":{ "foo": 1 }}`, "//"+mqtt.Addr))
 	t.RequireNil(cmd.Start())
 	defer killWait(cmd)
@@ -69,11 +67,11 @@ func TestMQTTtoHTTP(tt *testing.T) {
 	t.RequireNil(err)
 
 	// Retry sending till the source is subscribed and we get a request from the sink
-	var req *httptest.HTTPRequest
+	var req *httptest.Request
 	for req == nil {
 		mc.Send(lightning.Event{"specversion": "2.0", "data": "hello"}, "foo", 1)
 		select {
-		case req = <-hc:
+		case req = <-hs.Incoming:
 			var e lightning.Event
 			t.ExpectNil(json.Unmarshal(req.Body, &e))
 			d, err := e.DataValue()
