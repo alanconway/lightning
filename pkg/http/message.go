@@ -68,8 +68,6 @@ func MakeBinary(e lightning.Event, req *http.Request) error {
 
 type Message struct{ Req *http.Request }
 
-func (m Message) Finish(err error) {}
-
 func (m Message) Structured() *lightning.Structured {
 	ct := m.Req.Header.Get("content-type")
 	if lightning.IsFormat(ct) {

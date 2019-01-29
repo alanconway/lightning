@@ -60,9 +60,6 @@ func NewBinary(e lightning.Event) (am amqp.Message, err error) {
 	return
 }
 
-// TODO aconway 2019-01-15: QoS 1 - delay ack till Finish()
-func (m Message) Finish(err error) {}
-
 // BodyReader for binary AMQP body - error if body is not binary
 func (m Message) BodyReader() (r io.Reader, err error) {
 	// FIXME aconway 2019-01-16: bug in amqp.Message.Unmarshal - leaks panic

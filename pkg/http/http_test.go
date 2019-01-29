@@ -46,8 +46,6 @@ func (m *testMsg) Structured() *lightning.Structured {
 	}
 }
 
-func (m *testMsg) Finish(err error) { m.finished = true; m.err = err }
-
 func TestSink(tt *testing.T) {
 	t := test.New(tt)
 

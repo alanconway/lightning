@@ -167,6 +167,3 @@ func (m *message) Event() (lightning.Event, error) { return m.Structured().Event
 func (m *message) Structured() *lightning.Structured {
 	return &lightning.Structured{Reader: m.reader, Format: lightning.JSONFormat}
 }
-func (m *message) Finish(err error) {
-	// TODO aconway 2019-01-08: support for PubAck support
-}

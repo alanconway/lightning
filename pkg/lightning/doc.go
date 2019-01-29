@@ -58,11 +58,10 @@ unclear about when json data is base64 encoded.  Currently we make
 an educated guess on the contenttype but this needs work.
 
 QoS: transport bindings like HTTP, AMQP, MQTT can provide varied
-QoS. To support at-least-once or exactly-once the sink needs to
-notify the source via Message.Finish() (not yet implemented) Source
-and sink should also advertise their QoS range so both sides can
-degrade to the lowest level for performance, since the adapter's
-overall QoS will be that of the weakest link anyway.
+QoS. To support at-least-once or exactly-once the sink needs to notify
+the source. Source and sink should also advertise their QoS range so
+both sides can degrade to the lowest level for performance, since the
+adapter's overall QoS will be that of the weakest link anyway.
 
 Performance: Current Source & Sink impls do more copying than
 they should, no performance benchmarks have been done to date.

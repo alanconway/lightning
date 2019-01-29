@@ -37,8 +37,7 @@ type Sink struct {
 }
 
 func (s *Sink) Send(m lightning.Message) {
-	logFinish := func(err error) {
-		m.Finish(err)
+	logErr := func(err error) {
 		s.Log.Error("send failed", zap.Error(err))
 	}
 	req := http.Request{
@@ -51,20 +50,19 @@ func (s *Sink) Send(m lightning.Message) {
 		req.Header.Set("content-type", s.Format.Name())
 		req.Body = ioutil.NopCloser(s.Reader)
 	} else {
-		logFinish(errors.New("binary HTTP events not implemented"))
+		logErr(errors.New("binary HTTP events not implemented"))
 		return
 	}
 	// TODO aconway 2019-01-08: get more concurrency here?
 	resp, err := s.Client.Do(&req)
 	if err != nil {
-		logFinish(err)
+		logErr(err)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.Status[0] != '2' {
-		logFinish(fmt.Errorf("Bad HTTP response: %s", resp.Status))
+		logErr(fmt.Errorf("Bad HTTP response: %s", resp.Status))
 	}
-	m.Finish(nil)
 }
 
 func (s *Sink) Close() {}

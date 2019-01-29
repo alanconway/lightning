@@ -52,8 +52,7 @@ func (s *Source) Incoming() <-chan lightning.Message { return s.incoming }
 func (s *Source) handler(w http.ResponseWriter, r *http.Request) {
 	m := Message{Req: r}
 	s.incoming <- m
-	// Always respond 200 OK. For QoS > 0 we need to block here
-	// for the value of m.Finish()
+	// Always respond 200 OK. For QoS > 0 we need to block here for acknowledgement from sink.
 }
 
 func (s *Source) Run() error {

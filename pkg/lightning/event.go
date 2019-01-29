@@ -111,6 +111,3 @@ func (e Event) Event() (Event, error) { return e, nil }
 
 // Structured returns nil - required by Message interface.
 func (e Event) Structured() *Structured { return nil }
-
-// Finish is a no-op - required by  Message interface
-func (e Event) Finish(error) {}

@@ -1,5 +1,5 @@
 /*
-Licensed to the Apache Software Foundation (ASF) under one
+Lliicensed to the Apache Software Foundation (ASF) under one
 or more contributor license agreements.  See the NOTICE file
 distributed with this work for additional information
 regarding copyright ownership.  The ASF licenses this file
@@ -19,61 +19,38 @@ under the License.
 
 package lightning
 
-// Source is a source of events.
-//
-// A Source implementation can be a client (connect to some
-// server that provides events) or a server (accept connections
-// from clients that provide events)
-//
-type Source interface {
-
-	// Incoming channel of Message from the Source.
-	//
-	// Source blocks when the channel is full.
-	// Channel closes when source is closed.
-	Incoming() <-chan Message
-
-	// Close tells the source to close and returns immediately.
-	//
-	// Incoming() is closed, Run() will return once Incoming() is
-	// drained. Concurrent safe, can be called multiple times.
+// Endpoint is implemented by sources and sinks
+type Endpoint interface {
+	// Close initiates shut-down of the endpoint, concurrent safe.
+	// Further use will return an error, io.EOF if there is no other error.
 	Close()
 
-	// Run the source, put messages on Incoming().
-	//
-	// Returns when the source closes.
-	Run() error
+	// Wait for shut-down to complete, concurrent safe.
+	// Returns the error that caused the shut-down, or io.EOF if Close() was called.
+	Wait() error
+}
+
+// Source is a source of events.
+type Source interface {
+	Endpoint
+
+	// Get the next event Message from the Source. Concurrent safe.
+	Get() (Message, error)
 }
 
 // Sink is a destination for events.
-//
-// A Sink implementation can be a client (connect to some
-// server that accepts events) or a server (accept connections
-// from clients that subscribe for events)
-//
 type Sink interface {
-	// Send a message to the sink, concurrent-safe.
-	//
-	// Message.Finish() will be called when the sink is finished with
-	// the message. Depending on the implementation that may occur
-	// during the call to Send() or later from another goroutine.
-	Send(Message)
+	Endpoint
 
-	// Close the sink, concurrent-safe.
-	//
-	// Further calls to Send() will return an error.  All outstanding
-	// calls to Message.Finish() will occur before Close() returns.
-	//
-	// Can be called multiple times.
-	Close()
+	// Put a message in the sink, concurrent-safe.
+	Put(Message) error
 }
 
-// Transfer transfers events from source to sink until source is closed.
-func Transfer(source Source, sink Sink) error {
-	go func() {
-		for m := range source.Incoming() {
-			sink.Send(m)
-		}
-	}()
-	return source.Run()
+// Transfer events from source to sink until one of them returns an error.
+func Transfer(source Source, sink Sink) (err error) {
+	var m Message
+	for m, err = source.Get(); err == nil; m, err = source.Get() {
+		err = sink.Put(m)
+	}
+	return
 }

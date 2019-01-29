@@ -75,7 +75,7 @@ func (s *Source) Run() (err error) {
 			for rm, err := r.Receive(); err == nil; rm, err = r.Receive() {
 				s.log.Debug("Received", zap.String("message", rm.Message.String()))
 				s.incoming <- Message{AMQP: rm.Message}
-				// TODO aconway 2019-01-15: QoS 1, delay accept till Finish()
+				// TODO aconway 2019-01-15: QoS 1, delay accept till hand-off to sink.
 				rm.Accept()
 			}
 		}(a)

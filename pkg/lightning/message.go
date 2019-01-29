@@ -34,9 +34,9 @@ type Message interface {
 	// message contains one, nil if not.
 	Structured() *Structured
 
-	// Finish must be called by the Sink when it is done with the message.
-	// TODO: Finish and QoS settings are not yet implemented
-	Finish(error)
+	// TODO aconway 2019-01-29: implementing QoS > 0 will require some
+	// form of ack when responsibility for a message is transferred from
+	// source to sink or application.
 }
 
 // Structured holds the entire event structure serialized as bytes.
