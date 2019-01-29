@@ -34,23 +34,23 @@ type Endpoint interface {
 type Source interface {
 	Endpoint
 
-	// Get the next event Message from the Source. Concurrent safe.
-	Get() (Message, error)
+	// Receive the next event Message from the Source. Concurrent safe.
+	Receive() (Message, error)
 }
 
 // Sink is a destination for events.
 type Sink interface {
 	Endpoint
 
-	// Put a message in the sink, concurrent-safe.
-	Put(Message) error
+	// Send a message in the sink, concurrent-safe.
+	Send(Message) error
 }
 
 // Transfer events from source to sink until one of them returns an error.
 func Transfer(source Source, sink Sink) (err error) {
 	var m Message
-	for m, err = source.Get(); err == nil; m, err = source.Get() {
-		err = sink.Put(m)
+	for m, err = source.Receive(); err == nil; m, err = source.Receive() {
+		err = sink.Send(m)
 	}
 	return
 }

@@ -38,7 +38,7 @@ type SourceConfig struct {
 	lightning.CommonConfig
 	// Map topic filter to QoS (0,1 or 2)
 	Filters map[string]byte
-	// Capacity for Incoming() channel
+	// Capacity to buffer incoming events
 	Capacity int
 	// ClientID for MQTT connection
 	ClientID string
@@ -77,7 +77,7 @@ type Source struct {
 	err       error
 }
 
-func NewSource(c *SourceConfig, l *zap.Logger) *Source {
+func NewSource(c *SourceConfig, l *zap.Logger) (*Source, error) {
 	s := &Source{
 		config:   *c,
 		log:      l,
@@ -91,22 +91,22 @@ func NewSource(c *SourceConfig, l *zap.Logger) *Source {
 	opts.SetAutoReconnect(c.AutoReconnect)
 	opts.SetMaxReconnectInterval(c.MaxReconnectInterval.Duration)
 	s.client = paho.NewClient(opts)
-	return s
-}
-
-func (s *Source) Incoming() <-chan lightning.Message { return s.incoming }
-
-func (s *Source) Run() error {
 	// paho will reconnect but won't retry initial connect, so do that here.
-	s.err = s.retryConnect(s.config.AutoReconnect, s.config.MaxReconnectInterval.Duration, time.Second/10)
-	if s.err != nil {
-		return s.err
-	}
-	<-s.done
-	return s.err
+	err := s.retryConnect(c.AutoReconnect, c.MaxReconnectInterval.Duration, time.Second/10)
+	return s, err
 }
 
-func (s *Source) Close() { s.closeErr(nil, true) }
+func (s *Source) Close()      { s.closeErr(nil, true) }
+func (s *Source) Wait() error { <-s.done; return s.err }
+
+func (s *Source) Receive() (lightning.Message, error) {
+	select {
+	case <-s.done:
+		return nil, io.EOF
+	case m := <-s.incoming:
+		return m, nil
+	}
+}
 
 func (s *Source) retryConnect(retry bool, max time.Duration, sleep time.Duration) error {
 	for s.err = s.tryConnect(); lightning.IsRefused(s.err) && retry; s.err = s.tryConnect() {

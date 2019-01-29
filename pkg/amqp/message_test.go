@@ -69,7 +69,7 @@ func TestStructured(tt *testing.T) {
 	t := test.New(tt)
 	e := lightning.Event{"specversion": "2.0", "id": "foo", "data": "hello"}
 
-	s, err := e.Structured(lightning.JSONFormat)
+	s, err := e.Format(lightning.JSONFormat)
 	t.RequireNil(err)
 	am, err := NewStructured(s)
 	t.ExpectNil(err)

@@ -39,7 +39,7 @@ type testMsg struct {
 func (m *testMsg) Event() (lightning.Event, error) { return m.e, nil }
 
 func (m *testMsg) Structured() *lightning.Structured {
-	if s, err := m.e.Structured(lightning.JSONFormat); err == nil {
+	if s, err := m.e.Format(lightning.JSONFormat); err == nil {
 		return &s
 	} else {
 		return nil

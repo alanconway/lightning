@@ -52,7 +52,7 @@ func (b *Binding) Source(c lightning.Config) (lightning.Source, error) {
 	if err := c.Unmarshal(sc); err != nil {
 		return nil, err
 	}
-	return NewSource(&sc, b.log.With(zap.String("source", sc.URL.String()))), nil
+	return NewSource(&sc, b.log.With(zap.String("source", sc.URL.String())))
 }
 
 func (b Binding) Sink(conf lightning.Config) (lightning.Sink, error) {

@@ -59,18 +59,24 @@ func TestSource(tt *testing.T) {
 	topics := map[string]byte{"foo": 0, "bar": 1}
 	sc := SourceConfig{Filters: topics, Capacity: 100, ClientID: os.Args[0]}
 	sc.URL.URL = &url.URL{Host: broker.Addr, User: url.UserPassword("testuser", "testpassword")}
-	source := NewSource(&sc, zap.NewNop())
-	go source.Run()
+	source, err := NewSource(&sc, zap.NewNop())
+	t.RequireNil(err)
 
 	s, err := newSender(sc.URL.URL)
 	t.RequireEqual(nil, err)
 
 	// Initial messages to foo will be lost until MQTT source is subscribed
+	incoming := make(chan lightning.Message)
+	go func() {
+		m, err := source.Receive()
+		t.RequireNil(err)
+		incoming <- m
+	}()
 	var msg lightning.Message
 	for msg == nil {
 		t.RequireNil(s.send("foo", "hello", 0))
 		select {
-		case msg = <-source.Incoming():
+		case msg = <-incoming:
 			e, err := msg.Event()
 			t.ExpectNil(err)
 			t.ExpectEqual("hello", e["data"])
@@ -83,7 +89,9 @@ func TestSource(tt *testing.T) {
 	}
 	var received []float64
 	for range sent {
-		e, err := (<-source.Incoming()).Event()
+		m, err := source.Receive()
+		t.ExpectNil(err)
+		e, err := m.Event()
 		t.ExpectNil(err)
 		if e["data"] != "hello" { // Ignore surplus "hello" messages
 			received = append(received, e["data"].(float64))

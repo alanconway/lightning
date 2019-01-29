@@ -47,7 +47,15 @@ type Source struct {
 	err       error
 }
 
-func (s *Source) Incoming() <-chan lightning.Message { return s.incoming }
+func (s *Source) Receive() (lightning.Message, error) {
+	if m, ok := <-s.incoming; ok {
+		return m, nil
+	} else {
+		return nil, s.err
+	}
+}
+
+func (s *Source) Wait() error { <-s.done; return s.err }
 
 func (s *Source) handler(w http.ResponseWriter, r *http.Request) {
 	m := Message{Req: r}

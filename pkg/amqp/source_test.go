@@ -52,11 +52,13 @@ func TestSource(tt *testing.T) {
 
 	sc := SourceConfig{Addresses: []string{"foo"}, Capacity: 100}
 	sc.URL.URL = &url.URL{Host: srv.Host()}
-	src := NewSource(&sc, logger)
-	go src.Run()
+	src, err := NewSource(&sc, logger)
+	t.RequireNil(err)
+	defer src.Close()
 
 	// First message should be binary
-	m := <-src.Incoming()
+	m, err := src.Receive()
+	t.ExpectNil(err)
 	s := m.Structured()
 	t.ExpectEqual((*lightning.Structured)(nil), s)
 	e, err := m.Event()
@@ -66,7 +68,8 @@ func TestSource(tt *testing.T) {
 	t.ExpectEqual("binary", string(b))
 
 	// Next message should be structured
-	m = <-src.Incoming()
+	m, err = src.Receive()
+	t.ExpectNil(err)
 	s = m.Structured()
 	t.ExpectEqual(lightning.JSONFormat.Name(), s.Format.Name())
 	e, err = s.Event()

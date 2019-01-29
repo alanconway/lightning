@@ -21,8 +21,6 @@ package amqp
 
 import (
 	"errors"
-	"io"
-	"sync"
 
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
@@ -31,42 +29,37 @@ import (
 
 // Source is an AMQP client that subscribes to AMQP addresses for events
 type Source struct {
-	config    SourceConfig
-	log       *zap.Logger
-	conn      electron.Connection
-	incoming  chan lightning.Message
-	done      chan struct{}
-	closeOnce sync.Once
+	log      *zap.Logger
+	conn     electron.Connection
+	incoming chan lightning.Message
 }
 
-func NewSource(c *SourceConfig, log *zap.Logger) *Source {
-	return &Source{
-		config:   *c,
+func (s *Source) Close()      { s.conn.Close(nil) }
+func (s *Source) Wait() error { <-s.conn.Done(); return s.conn.Error() }
+
+func (s *Source) Receive() (lightning.Message, error) {
+	select {
+	case <-s.conn.Done():
+		return nil, s.conn.Error()
+	case m := <-s.incoming:
+		return m, nil
+	}
+}
+
+func NewSource(c *SourceConfig, log *zap.Logger) (s *Source, err error) {
+	s = &Source{
 		log:      log,
-		incoming: make(chan lightning.Message, c.Capacity),
-		done:     make(chan struct{}),
+		incoming: make(chan lightning.Message), // No capacity, AMQP Receivers do pre-fetching
 	}
-}
-
-func (s *Source) Incoming() <-chan lightning.Message { return s.incoming }
-func (s *Source) Close()                             { s.conn.Close(nil) }
-
-func (s *Source) Run() (err error) {
-	defer func() {
-		if err != nil {
-			s.log.Error("Run error", zap.Error(err))
-		}
-	}()
-	if len(s.config.Addresses) == 0 {
-		return errors.New("No Addresses for AMQP source")
+	if s.conn, err = electron.Dial("tcp", c.URL.Host); err != nil {
+		return nil, err
 	}
-
-	if s.conn, err = electron.Dial("tcp", s.config.URL.Host); err != nil {
-		return err
+	if len(c.Addresses) == 0 {
+		return nil, errors.New("No Addresses for AMQP source")
 	}
-	for _, a := range s.config.Addresses {
+	for _, a := range c.Addresses {
 		go func(a string) {
-			r, err := s.conn.Receiver(electron.Source(a), electron.Capacity(s.config.Capacity), electron.Prefetch(true))
+			r, err := s.conn.Receiver(electron.Source(a), electron.Capacity(c.Capacity), electron.Prefetch(true))
 			if err != nil {
 				s.conn.Close(err)
 				return
@@ -80,10 +73,5 @@ func (s *Source) Run() (err error) {
 			}
 		}(a)
 	}
-	<-s.conn.Done()
-	if s.conn.Error() == io.EOF {
-		return nil
-	} else {
-		return s.conn.Error()
-	}
+	return
 }
