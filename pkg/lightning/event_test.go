@@ -88,3 +88,20 @@ func TestEventDataReader(tt *testing.T) {
 	v, err = ioutil.ReadAll(r.(io.Reader))
 	t.ExpectEqual([]byte{32}, v)
 }
+
+func TestEventFormat(tt *testing.T) {
+	t := test.New(tt)
+
+	e := Event{"data": "hello", "specversion": "2.0", "contenttype": "text/plain"}
+	s, err := e.Format(JSONFormat)
+	t.ExpectNil(err)
+	t.ExpectEqual("application/cloudevents+json", s.Format.Name())
+	b, err := ioutil.ReadAll(s.Reader)
+	t.ExpectNil(err)
+	t.ExpectEqual(`{"contenttype":"text/plain","data":"hello","specversion":"2.0"}`, string(b))
+	// Make a new structured event since we've consumed the data in this one
+	s, err = e.Format(JSONFormat)
+	e2, err := s.Event()
+	t.ExpectNil(err)
+	t.ExpectEqual(e, e2)
+}

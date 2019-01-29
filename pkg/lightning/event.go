@@ -54,7 +54,8 @@ func (e Event) getStr(name string) string {
 	}
 }
 
-// Attributes returns attribute names that vary by cloudEvents version.
+// Attributes returns attribute names that vary by cloudEvents, appropriate for this event.
+// Returns nil if the event has no known specversion attribute.
 func (e Event) Attributes() *Attributes {
 	var a *Attributes
 	for _, a = range versions {
@@ -97,10 +98,19 @@ func (e Event) SetData(v interface{}) {
 	e[data] = v
 }
 
-func (e Event) Structured(f Format) (Structured, error) {
+func (e Event) Format(f Format) (Structured, error) {
 	if b, err := f.Marshal(e); err == nil {
 		return Structured{bytes.NewReader(b), f}, nil
 	} else {
 		return Structured{}, err
 	}
 }
+
+// Event returns the event itself - required by Message interface.
+func (e Event) Event() (Event, error) { return e, nil }
+
+// Structured returns nil - required by Message interface.
+func (e Event) Structured() *Structured { return nil }
+
+// Finish is a no-op - required by  Message interface
+func (e Event) Finish(error) {}
