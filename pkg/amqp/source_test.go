@@ -20,18 +20,17 @@ under the License.
 package amqp
 
 import (
+	"fmt"
 	"io/ioutil"
-	"net/url"
 	"testing"
 
 	"github.com/alanconway/lightning/internal/pkg/amqptest"
 	"github.com/alanconway/lightning/internal/pkg/test"
 	"github.com/alanconway/lightning/pkg/lightning"
-	"go.uber.org/zap"
 	"qpid.apache.org/amqp"
 )
 
-func TestSource(tt *testing.T) {
+func TestClientSource(tt *testing.T) {
 	t := test.New(tt)
 
 	bmsg := amqp.NewMessageWith([]byte("binary"))
@@ -48,12 +47,9 @@ func TestSource(tt *testing.T) {
 	go srv.Run()
 	defer func() { t.ExpectNil(srv.Close()) }()
 
-	logger, _ := zap.NewDevelopment()
-
-	sc := SourceConfig{Addresses: []string{"foo"}, Capacity: 100}
-	sc.URL.URL = &url.URL{Host: srv.Host()}
-	src, err := NewSource(&sc, logger)
-	t.RequireNil(err)
+	sc := fmt.Sprintf(`{"addresses":["foo"], "capacity": 100, "URL": "//%s"}`, srv.Host())
+	src, err := NewBinding().Source(lightning.Config(sc))
+	t.ExpectNil(err)
 	defer src.Close()
 
 	// First message should be binary

@@ -21,18 +21,12 @@ package amqp
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
+	"qpid.apache.org/electron"
 )
-
-const BindingName = "amqp"
-
-type Binding struct{ log *zap.Logger }
-
-func NewBinding() *Binding                      { return &Binding{log: zap.NewNop()} }
-func (Binding) Name() string                    { return BindingName }
-func (b *Binding) SetLogger(logger *zap.Logger) { b.log = logger }
 
 // TODO aconway 2019-01-15: Use the same flexible client/server and
 // link management configuration as https://github.com/alanconway/envoy-amqp
@@ -47,12 +41,62 @@ type SourceConfig struct {
 	Capacity int
 }
 
-func (b *Binding) Source(c lightning.Config) (lightning.Source, error) {
+func NewClientSource(c lightning.Config, log *zap.Logger) (lightning.Source, error) {
 	var sc SourceConfig
-	if err := c.Unmarshal(sc); err != nil {
+	if err := c.Unmarshal(&sc); err != nil {
 		return nil, err
 	}
-	return NewSource(&sc, b.log.With(zap.String("source", sc.URL.String())))
+	conn, err := electron.Dial("tcp", sc.URL.Host)
+	if err != nil {
+		return nil, err
+	}
+	s := NewSource(log.With(zap.String("source", sc.URL.String())))
+	if err = s.Connect(conn, sc.Addresses, sc.Capacity); err != nil {
+		s.Close()
+		return nil, err
+	}
+	return s, nil
+}
+
+func NewServerSource(c lightning.Config, log *zap.Logger) (lightning.Source, error) {
+	// TODO aconway 2019-01-31: ignores Addresses, need different config?
+	var sc SourceConfig
+	if err := c.Unmarshal(&sc); err != nil {
+		return nil, err
+	}
+	s := NewSource(log.With(zap.String("source", sc.URL.String())))
+	l, err := net.Listen("tcp", sc.URL.Host)
+	if err != nil {
+		s.Close()
+		return nil, err
+	}
+	go s.Serve(l, electron.NewContainer(""), sc.Capacity)
+	return s, nil
+}
+
+const BindingName = "amqp"
+
+type Binding struct{ log *zap.Logger }
+
+func NewBinding() *Binding                      { return &Binding{log: zap.NewNop()} }
+func (Binding) Name() string                    { return BindingName }
+func (b *Binding) SetLogger(logger *zap.Logger) { b.log = logger }
+
+func (b *Binding) Source(c lightning.Config) (lightning.Source, error) {
+	var sc SourceConfig
+	if err := c.Unmarshal(&sc); err != nil {
+		return nil, err
+	}
+	conn, err := electron.Dial("tcp", sc.URL.Host)
+	if err != nil {
+		return nil, err
+	}
+	s := NewSource(b.log.With(zap.String("source", sc.URL.String())))
+	if err = s.Connect(conn, sc.Addresses, sc.Capacity); err != nil {
+		s.Close()
+		return nil, err
+	}
+	return s, nil
 }
 
 func (b Binding) Sink(conf lightning.Config) (lightning.Sink, error) {

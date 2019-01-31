@@ -40,7 +40,7 @@ func (m *testMsg) Event() (lightning.Event, error) { return m.e, nil }
 
 func (m *testMsg) Structured() *lightning.Structured {
 	if s, err := m.e.Format(lightning.JSONFormat); err == nil {
-		return &s
+		return s
 	} else {
 		return nil
 	}

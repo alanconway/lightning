@@ -98,11 +98,11 @@ func (e Event) SetData(v interface{}) {
 	e[data] = v
 }
 
-func (e Event) Format(f Format) (Structured, error) {
+func (e Event) Format(f Format) (*Structured, error) {
 	if b, err := f.Marshal(e); err == nil {
-		return Structured{bytes.NewReader(b), f}, nil
+		return &Structured{bytes.NewReader(b), f}, nil
 	} else {
-		return Structured{}, err
+		return &Structured{}, err
 	}
 }
 

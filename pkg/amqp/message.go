@@ -30,7 +30,7 @@ import (
 
 type Message struct{ AMQP amqp.Message }
 
-func NewStructured(s lightning.Structured) (amqp.Message, error) {
+func NewStructured(s *lightning.Structured) (amqp.Message, error) {
 	d, err := ioutil.ReadAll(s.Reader)
 	if err == nil {
 		am := amqp.NewMessageWith(d)

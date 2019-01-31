@@ -30,7 +30,7 @@ import (
 
 var cePrefix = "ce-"
 
-func MakeStructured(s lightning.Structured, req *http.Request) {
+func MakeStructured(s *lightning.Structured, req *http.Request) {
 	req.Header.Set("content-type", s.Format.Name())
 	req.Body = ioutil.NopCloser(s.Reader)
 }
