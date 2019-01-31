@@ -18,23 +18,3 @@ under the License.
 */
 
 package lightning
-
-import (
-	"testing"
-
-	"github.com/alanconway/lightning/internal/pkg/test"
-)
-
-func TestMarshalUnmarshal(t *testing.T) {
-	tb := test.New(t)
-
-	e := Event{"specversion": "2.0", "data": []byte{1, 2, 3}, "contenttype": "foo"}
-	b, err := JSONFormat.Marshal(e)
-	tb.ExpectEqual(nil, err)
-	// "AQID" is base64 encoding of binary 0x010203
-	tb.ExpectEqual("{\"contenttype\":\"foo\",\"data\":\"AQID\",\"specversion\":\"2.0\"}", string(b))
-
-	var e2 Event
-	tb.ExpectEqual(nil, JSONFormat.Unmarshal(b, &e2))
-	tb.ExpectEqual(e, e2)
-}

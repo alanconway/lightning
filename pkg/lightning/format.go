@@ -23,6 +23,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -61,27 +62,32 @@ type jsonFormat struct{}
 func (jsonFormat) Name() string { return "application/cloudevents+json" }
 
 func (jsonFormat) Marshal(e Event) ([]byte, error) {
-	ct := e.ContentType()
-	if MediaTypeIsBinary(ct) {
-		// Binary media, needs base64 encoding
-		d, err := e.DataValue()
-		if err != nil {
-			return nil, err
-		}
-		b, ok := d.([]byte)
-		if !ok {
-			return nil, fmt.Errorf("Expected binary data value in event %#v", e)
-		}
-		e[data] = base64.StdEncoding.EncodeToString(b)
+	if _, err := e.DataValue(); err != nil { // Convert Reader to []byte
+		return nil, err
 	}
 	return json.Marshal(e)
 }
 
-// FIXME aconway 2019-01-16: sanitize Event to convert to legal values
-// e.g. json numbers unmarshal as float64, need to be intergerized.
+// Attempts to guess media-types that need to be base64 decoded.
+// This is a temporary workaround, the cloud-event spec is deficient on this point.
+// See https://github.com/cloudevents/spec/issues/261#issuecomment-448650135
+func needBase64(contenttype string) bool {
+	ok := !textish.Match([]byte(contenttype))
+	return ok
+}
 
-func (jsonFormat) Unmarshal(b []byte, e *Event) error {
-	return json.Unmarshal(b, e)
+var textish = *regexp.MustCompile("(^$)|(^text$)|(^text/)|(^application.*[/+-.](xml|json|yaml|javascript|html|text|wbxml)([/+-.]|$))")
+
+func (jsonFormat) Unmarshal(b []byte, e *Event) (err error) {
+	if err = json.Unmarshal(b, e); err == nil {
+		if s, ok := (*e)[data].(string); ok && needBase64(e.ContentType()) {
+			(*e)[data], err = base64.StdEncoding.DecodeString(s)
+		}
+	}
+	// TODO aconway 2019-01-16: further sanitize Event to convert know
+	// attributes to legal values, e.g. json numbers unmarshal as float64
+	// and need to be converted for Integer type headers
+	return
 }
 
 // FormatMap is a map of formats by name

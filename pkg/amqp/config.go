@@ -20,12 +20,8 @@ under the License.
 package amqp
 
 import (
-	"fmt"
-	"net"
-
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
-	"qpid.apache.org/electron"
 )
 
 // TODO aconway 2019-01-15: Use the same flexible client/server and
@@ -33,45 +29,10 @@ import (
 // For now this is a simple AMQP client that subscribes to N addresses
 
 type SourceConfig struct {
-	// URL in CommonConfig is used for connection only, Addresses provides link addresses
-	lightning.CommonConfig
-	// Addresses are AMQP link addresses to subscribe to after connecting
-	Addresses []string
+	// URL connect to URL.Host, subscribe to AMQP address URL.Path
+	URL lightning.URL
 	// Capacity is the message credit window size for each link
 	Capacity int
-}
-
-func NewClientSource(c lightning.Config, log *zap.Logger) (lightning.Source, error) {
-	var sc SourceConfig
-	if err := c.Unmarshal(&sc); err != nil {
-		return nil, err
-	}
-	conn, err := electron.Dial("tcp", sc.URL.Host)
-	if err != nil {
-		return nil, err
-	}
-	s := NewSource(log.With(zap.String("source", sc.URL.String())))
-	if err = s.Connect(conn, sc.Addresses, sc.Capacity); err != nil {
-		s.Close()
-		return nil, err
-	}
-	return s, nil
-}
-
-func NewServerSource(c lightning.Config, log *zap.Logger) (lightning.Source, error) {
-	// TODO aconway 2019-01-31: ignores Addresses, need different config?
-	var sc SourceConfig
-	if err := c.Unmarshal(&sc); err != nil {
-		return nil, err
-	}
-	s := NewSource(log.With(zap.String("source", sc.URL.String())))
-	l, err := net.Listen("tcp", sc.URL.Host)
-	if err != nil {
-		s.Close()
-		return nil, err
-	}
-	go s.Serve(l, electron.NewContainer(""), sc.Capacity)
-	return s, nil
 }
 
 const BindingName = "amqp"
@@ -87,20 +48,16 @@ func (b *Binding) Source(c lightning.Config) (lightning.Source, error) {
 	if err := c.Unmarshal(&sc); err != nil {
 		return nil, err
 	}
-	conn, err := electron.Dial("tcp", sc.URL.Host)
-	if err != nil {
-		return nil, err
-	}
-	s := NewSource(b.log.With(zap.String("source", sc.URL.String())))
-	if err = s.Connect(conn, sc.Addresses, sc.Capacity); err != nil {
-		s.Close()
-		return nil, err
-	}
-	return s, nil
+	return NewClientSource(sc.URL.URL, sc.Capacity, b.log)
 }
 
-func (b Binding) Sink(conf lightning.Config) (lightning.Sink, error) {
-	return nil, fmt.Errorf("%v Sink not implemented", b.Name())
+func (b Binding) Sink(c lightning.Config) (lightning.Sink, error) {
+	var cc lightning.CommonConfig
+	cc.URL.MustParse("amqp://:5672")
+	if err := c.Unmarshal(&cc); err != nil {
+		return nil, err
+	}
+	return NewClientSink(cc.URL.URL, b.log)
 }
 
 func (Binding) Doc() string {

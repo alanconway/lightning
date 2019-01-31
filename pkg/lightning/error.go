@@ -20,18 +20,20 @@ under the License.
 package lightning
 
 import (
-	"testing"
+	"sync/atomic"
 )
 
-func TestMediaTypeIsBinary(t *testing.T) {
-	for _, m := range []string{"", "text", "text/foobar", "application/blah+xml", "application/javascript", "application/json", "application/foo-html", "application/foo.html.blah", "application/json-seq"} {
-		if MediaTypeIsBinary(m) {
-			t.Errorf("expected !MediaTypeIsBinary(%#v)", m)
-		}
+type AtomicError struct{ atomic.Value }
+
+func (ae *AtomicError) Get() error {
+	if err := ae.Load(); err != nil {
+		return err.(error)
 	}
-	for _, m := range []string{"audo/foo", "xyz", "application/blah+blah", "application/x"} {
-		if !MediaTypeIsBinary(m) {
-			t.Errorf("expected MediaTypeIsText(%#v)", m)
-		}
+	return nil
+}
+
+func (ae *AtomicError) Set(err error) {
+	if ae.Get() == nil {
+		ae.Store(err)
 	}
 }

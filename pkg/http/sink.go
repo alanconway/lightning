@@ -20,9 +20,7 @@ under the License.
 package http
 
 import (
-	"errors"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 
@@ -45,12 +43,8 @@ func (s *Sink) Send(m lightning.Message) error {
 		URL:    s.URL,
 		Header: http.Header{},
 	}
-	// Use existing structured message if there is one
-	if s := m.Structured(); s != nil {
-		req.Header.Set("content-type", s.Format.Name())
-		req.Body = ioutil.NopCloser(s.Reader)
-	} else {
-		return (errors.New("binary HTTP events not implemented"))
+	if err := MakeMessage(m, &req); err != nil {
+		return err
 	}
 	// TODO aconway 2019-01-08: get more concurrency here?
 	resp, err := s.Client.Do(&req)

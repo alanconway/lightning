@@ -21,6 +21,7 @@ package lightning
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"io/ioutil"
 )
@@ -72,7 +73,20 @@ func (e Event) ContentType() string { return e.getStr(e.Attributes().ContentType
 // SpecVersion returns the specversion
 func (e Event) SpecVersion() string { return e.getStr(e.Attributes().SpecVersion) }
 
-// DataReader returns a reader if the event has binary data, nil otherwise.
+// DataIsBytes returns true if the data attribute types is []bytes or io.Reader
+func (e Event) DataIsBytes() bool {
+	switch e[data].(type) {
+	case []byte:
+		return true
+	case io.Reader:
+		return true
+	default:
+		return false
+	}
+}
+
+// DataReader returns a reader if the data attribute types is []bytes or io.Reader
+// nil otherwise.
 func (e Event) DataReader() io.Reader {
 	switch d := e[data].(type) {
 	case []byte:
@@ -111,3 +125,13 @@ func (e Event) Event() (Event, error) { return e, nil }
 
 // Structured returns nil - required by Message interface.
 func (e Event) Structured() *Structured { return nil }
+
+func (e Event) String() string { return fmt.Sprintf("%#v", e) }
+
+func (e Event) Copy() Event {
+	e2 := make(Event, len(e))
+	for k, v := range e {
+		e2[k] = v
+	}
+	return e2
+}

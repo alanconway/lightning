@@ -100,11 +100,10 @@ func (s *Source) Close()      { s.closeErr(nil, true) }
 func (s *Source) Wait() error { <-s.done; return s.err }
 
 func (s *Source) Receive() (lightning.Message, error) {
-	select {
-	case <-s.done:
-		return nil, io.EOF
-	case m := <-s.incoming:
+	if m, ok := <-s.incoming; ok {
 		return m, nil
+	} else {
+		return nil, s.err
 	}
 }
 

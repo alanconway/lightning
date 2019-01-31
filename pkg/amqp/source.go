@@ -22,8 +22,7 @@ package amqp
 import (
 	"io"
 	"net"
-	"sync"
-	"sync/atomic"
+	"net/url"
 
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
@@ -32,108 +31,117 @@ import (
 
 // Source is an AMQP source that receives messages from a collection of electron.Receiver
 type Source struct {
-	log                    *zap.Logger
-	connections, listeners sync.Map
-	incoming               chan lightning.Message
-	workers                sync.WaitGroup
-	err                    atomic.Value
-	waitOnce               sync.Once
+	Endpoint
+	incoming chan lightning.Message
 }
 
 // NewSource returns a new Source, use Add to add receivers.
 func NewSource(log *zap.Logger) *Source {
-	return &Source{log: log, incoming: make(chan lightning.Message)}
+	var s Source
+	s.Endpoint.init(log, func() { close(s.incoming) })
+	s.incoming = make(chan lightning.Message)
+	return &s
 }
 
-func (s *Source) setErr(err error) {
-	if s.err.Load() == nil {
-		s.err.Store(err)
+// Receive the next event message from the source.
+func (s *Source) Receive() (lightning.Message, error) {
+	if m, ok := <-s.incoming; ok {
+		return m, nil
+	} else {
+		return nil, s.err.Get()
 	}
 }
 
 // Add a Receiver to the source and start receiving messages from it
 func (s *Source) Add(r electron.Receiver) {
+	s.log.Info("add receiver", zap.String("receiver", r.String()))
 	s.connections.Store(r.Connection(), nil)
-	s.workers.Add(1)
+	s.busy.Add(1)
 	go func() {
-		defer s.workers.Done()
+		defer s.busy.Done()
 		rm, err := r.Receive()
 		for ; err == nil; rm, err = r.Receive() {
 			s.incoming <- Message{AMQP: rm.Message}
 			rm.Accept() // TODO aconway 2019-01-15: QoS 1, delay accept till hand-off to sink.
 		}
 		if err != io.EOF {
-			s.setErr(err)
-			s.Close()
+			s.closeErr(err)
 		}
 	}()
 }
 
-func (s *Source) Close() {
-	s.listeners.Range(func(l, _ interface{}) bool {
-		s.connections.Delete(l)
-		l.(net.Listener).Close()
-		return true
-	})
-	s.connections.Range(func(c, _ interface{}) bool {
-		s.connections.Delete(c)
-		c.(electron.Connection).Close(nil)
-		return true
-	})
-}
-
-func (s *Source) Wait() error {
-	s.waitOnce.Do(func() {
-		s.workers.Wait()
-		s.setErr(io.EOF)
-		close(s.incoming)
-	})
-	return s.err.Load().(error)
-}
-
-func (s *Source) Receive() (lightning.Message, error) {
-	if m, ok := <-s.incoming; ok {
-		return m, nil
-	} else {
-		return nil, s.err.Load().(error)
+func logErr(log *zap.Logger, msg string, err error, fields ...zap.Field) {
+	if err != nil {
+		fields := append(fields, zap.Error(err))
+		log.Error(msg, fields...)
 	}
 }
 
-// Connect adds Receivers from conn for each source address in addrs using opts
-func (s *Source) Connect(conn electron.Connection, addrs []string, capacity int) error {
-	for _, a := range addrs {
-		r, err := conn.Receiver(electron.Source(a), electron.Capacity(capacity), electron.Prefetch(true))
-		if err != nil {
-			s.Close()
-			return err
+func accept(listener net.Listener, opts ...electron.ConnectionOption) (c electron.Connection, err error) {
+	conn, err := listener.Accept()
+	if err == nil {
+		if c, err = electron.NewConnection(conn, opts...); err != nil {
+			conn.Close()
 		}
-		s.Add(r)
 	}
-	return nil
+	return
 }
 
-func (s *Source) Serve(l net.Listener, container electron.Container, capacity int) {
+// Serve adds l to Listeners() and starts a server to Add() incoming Receivers.
+func (s *Source) Serve(l net.Listener, capacity int, opts ...electron.ConnectionOption) {
 	s.listeners.Store(l, nil)
-	for {
-		conn, err := container.Accept(l)
-		if err != nil {
-			s.setErr(err)
-			s.Close()
-			return
-		}
-		go func() {
-			for in := range conn.Incoming() {
-				switch in := in.(type) {
-				case *electron.IncomingReceiver:
-					in.SetCapacity(capacity)
-					in.SetPrefetch(true)
-					s.Add(in.Accept().(electron.Receiver))
-				case nil:
-					return // Connection is closed
-				default:
-					in.Accept()
-				}
+	s.busy.Add(1)
+	opts = append(opts, electron.Server())
+	go func() {
+		defer s.busy.Done()
+		for {
+			c, err := accept(l, opts...)
+			if err != nil {
+				s.closeErr(err)
+				return
 			}
-		}()
+			go func() {
+				for in := range c.Incoming() {
+					switch in := in.(type) {
+					case *electron.IncomingReceiver:
+						in.SetCapacity(capacity)
+						in.SetPrefetch(true)
+						s.Add(in.Accept().(electron.Receiver))
+					case nil:
+						return // Connection is closed
+					default:
+						in.Accept()
+					}
+				}
+			}()
+		}
+	}()
+}
+
+// NewClientSource creates a source connected to u.Host and subscribed to u.Path
+func NewClientSource(u *url.URL, capacity int, logger *zap.Logger, opts ...electron.ConnectionOption) (*Source, error) {
+	if c, err := electron.Dial("tcp", u.Host, opts...); err != nil {
+		return nil, err
+	} else if r, err := c.Receiver(electron.Source(u.Path), electron.Capacity(capacity), electron.Prefetch(true)); err != nil {
+		c.Close(nil)
+		return nil, err
+	} else if err := r.Sync(); err != nil {
+		c.Close(nil)
+		return nil, err
+	} else {
+		s := NewSource(logger.Named("source > " + u.String()))
+		s.Add(r)
+		return s, nil
+	}
+}
+
+// NewServerSource creates a source listening on network, address
+func NewServerSource(network, address string, capacity int, log *zap.Logger, opts ...electron.ConnectionOption) (*Source, error) {
+	if l, err := net.Listen(network, address); err != nil {
+		return nil, err
+	} else {
+		s := NewSource(log.Named("source < " + l.Addr().String()))
+		s.Serve(l, capacity, opts...)
+		return s, nil
 	}
 }

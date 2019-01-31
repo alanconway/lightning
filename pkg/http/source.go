@@ -20,77 +20,52 @@ under the License.
 package http
 
 import (
+	"io"
 	"net"
 	"net/http"
 	"sync"
-	"sync/atomic"
 
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
 )
 
-// Source is a HTTP server that generates cloud-events.
-type Source struct {
-	// HTTP server settings.
-	// Do not set Server.Handler, it will be set by the Source
+// ServerSource is a HTTP server that converts requests to cloud-events.
+type ServerSource struct {
+	// HTTP server settings. Do not modify Server.Handler
 	Server http.Server
 
-	// Listeners to serve. If empty, Run() will call http.Server.ListenAndServe()
-	Listeners []net.Listener
-
-	// Log for source log messages
-	Log *zap.Logger
-
+	log       *zap.Logger
 	incoming  chan lightning.Message
-	done      chan struct{}
 	closeOnce sync.Once
-	err       error
+	busy      sync.WaitGroup
+	err       lightning.AtomicError
 }
 
-func (s *Source) Receive() (lightning.Message, error) {
+func NewServerSource(log *zap.Logger) *ServerSource {
+	s := &ServerSource{
+		log:      log,
+		incoming: make(chan lightning.Message),
+	}
+	s.Server.Handler = http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) { s.incoming <- Message{Req: r} })
+	s.Server.ErrorLog, _ = zap.NewStdLogAt(s.log, zap.ErrorLevel)
+	s.busy.Add(1) // Removed in Close()
+	return s
+}
+
+func (s *ServerSource) Receive() (lightning.Message, error) {
 	if m, ok := <-s.incoming; ok {
 		return m, nil
 	} else {
-		return nil, s.err
+		return nil, s.err.Get()
 	}
 }
 
-func (s *Source) Wait() error { <-s.done; return s.err }
+func (s *ServerSource) Close()      { s.Server.Shutdown(nil); s.err.Set(io.EOF); s.busy.Done() }
+func (s *ServerSource) Wait() error { s.busy.Wait(); return s.err.Get() }
 
-func (s *Source) handler(w http.ResponseWriter, r *http.Request) {
-	m := Message{Req: r}
-	s.incoming <- m
-	// Always respond 200 OK. For QoS > 0 we need to block here for acknowledgement from sink.
+// Start listening to a listener
+func (s *ServerSource) Start(l net.Listener) {
+	s.busy.Add(1)
+	go func() { s.err.Set(s.Server.Serve(l)); s.busy.Done() }()
 }
-
-func (s *Source) Run() error {
-	if s.Server.Handler != nil {
-		panic("Source.Server.Handler must not be set")
-	}
-	s.Server.Handler = http.HandlerFunc(s.handler)
-	if s.Server.ErrorLog == nil {
-		s.Server.ErrorLog, _ = zap.NewStdLogAt(s.Log, zap.ErrorLevel)
-	}
-
-	if len(s.Listeners) == 0 {
-		return s.Server.ListenAndServe()
-	} else {
-		var wait sync.WaitGroup
-		var atomicErr atomic.Value
-		wait.Add(len(s.Listeners))
-		for _, l := range s.Listeners {
-			go func(l net.Listener) {
-				if err := s.Server.Serve(l); err != nil {
-					atomicErr.Store(err)
-				}
-				wait.Done()
-			}(l)
-		}
-		wait.Wait()
-		err, _ := atomicErr.Load().(error)
-		return err
-	}
-}
-
-// Close calls Server.Shutdown() which waits for all requests to complete.
-func (s *Source) Close() { s.Server.Shutdown(nil) }

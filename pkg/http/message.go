@@ -66,6 +66,18 @@ func MakeBinary(e lightning.Event, req *http.Request) error {
 	return nil
 }
 
+func MakeMessage(m lightning.Message, req *http.Request) error {
+	if s := m.Structured(); s != nil {
+		MakeStructured(s, req)
+		return nil
+	}
+	if e, err := m.Event(); err == nil {
+		return MakeBinary(e, req)
+	} else {
+		return err
+	}
+}
+
 type Message struct{ Req *http.Request }
 
 func (m Message) Structured() *lightning.Structured {

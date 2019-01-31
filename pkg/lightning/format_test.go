@@ -25,7 +25,39 @@ import (
 	"github.com/alanconway/lightning/internal/pkg/test"
 )
 
-func TestJSONFormat(tt *testing.T) {
+func TestJSONBytesData(t *testing.T) {
+	tb := test.New(t)
+
+	e := Event{"specversion": "2.0", "data": []byte{1, 2, 3}, "contenttype": "application/octet-stream"}
+	b, err := JSONFormat.Marshal(e)
+	tb.ExpectEqual([]byte{1, 2, 3}, e["data"]) // Don't modify in marshal
+	tb.ExpectEqual(nil, err)
+	// "AQID" is base64 encoding of binary 0x010203
+	tb.ExpectEqual(`{"contenttype":"application/octet-stream","data":"AQID","specversion":"2.0"}`, string(b))
+
+	var e2 Event
+	tb.ExpectNil(JSONFormat.Unmarshal(b, &e2))
+	tb.ExpectEqual(e, e2)
+	tb.ExpectEqual(e2["data"], []byte{1, 2, 3}) // unmarshalled data never base64 encoded
+}
+
+func TestJSONReaderData(t *testing.T) {
+	tb := test.New(t)
+
+	e := Event{"specversion": "2.0", "data": []byte{1, 2, 3}, "contenttype": "application/octet-stream"}
+	b, err := JSONFormat.Marshal(e)
+	tb.ExpectEqual([]byte{1, 2, 3}, e["data"]) // Marshal reads the bytes
+	tb.ExpectEqual(nil, err)
+	// "AQID" is base64 encoding of binary 0x010203
+	tb.ExpectEqual(`{"contenttype":"application/octet-stream","data":"AQID","specversion":"2.0"}`, string(b))
+
+	var e2 Event
+	tb.ExpectNil(JSONFormat.Unmarshal(b, &e2))
+	tb.ExpectEqual(e, e2)
+	tb.ExpectEqual(e2["data"], []byte{1, 2, 3}) // unmarshalled data never base64 encoded
+}
+
+func TestJSONStringNoContent(tt *testing.T) {
 	t := test.New(tt)
 	e := Event{"data": "foo", "specversion": "2.0"}
 	b, err := JSONFormat.Marshal(e)
@@ -34,12 +66,17 @@ func TestJSONFormat(tt *testing.T) {
 
 	var e2 Event
 	err = JSONFormat.Unmarshal(b, &e2)
-	t.ExpectEqual(nil, err)
+	t.ExpectNil(err)
+	t.ExpectEqual(e, e2)
+}
 
-	t.ExpectEqual("foo", e2["data"])
-	sv := e2.SpecVersion()
+func TestJSONStringContent(tt *testing.T) {
+	t := test.New(tt)
+	e := Event{"contenttype": "text/plain", "data": "foo", "specversion": "2.0"}
+	b, err := JSONFormat.Marshal(e)
 	t.ExpectEqual(nil, err)
-	t.ExpectEqual("2.0", sv)
-
+	var e2 Event
+	err = JSONFormat.Unmarshal(b, &e2)
+	t.ExpectNil(err)
 	t.ExpectEqual(e, e2)
 }

@@ -56,3 +56,6 @@ func (s *Structured) Event() (e Event, err error) {
 	}
 	return
 }
+
+// Structured implements Message.Structured() and just returns self.
+func (s *Structured) Structured() *Structured { return s }

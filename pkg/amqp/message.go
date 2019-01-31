@@ -60,9 +60,21 @@ func NewBinary(e lightning.Event) (am amqp.Message, err error) {
 	return
 }
 
+func NewMessage(m lightning.Message) (am amqp.Message, err error) {
+	if s := m.Structured(); s != nil {
+		return NewStructured(s)
+	} else {
+		e, err := m.Event()
+		if err != nil {
+			return nil, err
+		}
+		return NewBinary(e)
+	}
+}
+
 // BodyReader for binary AMQP body - error if body is not binary
 func (m Message) BodyReader() (r io.Reader, err error) {
-	// FIXME aconway 2019-01-16: bug in amqp.Message.Unmarshal - leaks panic
+	// TODO aconway 2019-01-16: bug in amqp.Message.Unmarshal - leaks panic
 	defer func() {
 		r := recover()
 		switch r := r.(type) {

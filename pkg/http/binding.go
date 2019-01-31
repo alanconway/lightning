@@ -37,18 +37,18 @@ func (b *Binding) SetLogger(logger *zap.Logger) { b.log = logger.Named("http") }
 
 func (b *Binding) Source(c lightning.Config) (lightning.Source, error) {
 	cc := lightning.CommonConfig{}
-	cc.URL.MustParse("http:80")
-	err := c.Unmarshal(&cc)
-	if err == nil {
-		s := &Source{
-			Listeners: make([]net.Listener, 1),
-			Log:       b.log.With(zap.String("source", cc.URL.String())),
-		}
-		if s.Listeners[0], err = net.Listen("tcp", cc.URL.Host); err == nil {
-			return s, nil
-		}
+	cc.URL.MustParse("http://:80")
+	if err := c.Unmarshal(&cc); err != nil {
+		return nil, err
 	}
-	return nil, err
+	log := b.log.With(zap.String("source", cc.URL.String()))
+	l, err := net.Listen("tcp", cc.URL.Host)
+	if err != nil {
+		return nil, err
+	}
+	s := NewServerSource(log)
+	s.Start(l)
+	return s, nil
 }
 
 func (b *Binding) Sink(c lightning.Config) (lightning.Sink, error) {

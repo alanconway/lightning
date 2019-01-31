@@ -59,20 +59,3 @@ func TestSink(tt *testing.T) {
 	t.ExpectEqual(lightning.JSONFormat.Name(), got.Header.Get("Content-Type"))
 	t.ExpectEqual(`{"data":"hello","specversion":"2.0"}`, string(got.Body))
 }
-
-func TestBinding(tt *testing.T) {
-	t := test.New(tt)
-
-	b := NewBinding()
-	ls, err := b.Source([]byte(`{"binding": "http", "url": "//:0"}`))
-	t.RequireNil(err)
-	s, _ := ls.(*Source)
-	t.Requiref(s != nil, "want *http.Source got %T", ls)
-	t.RequireEqual(1, len(s.Listeners))
-	u := &url.URL{Scheme: "http", Host: s.Listeners[0].Addr().String()}
-	sink := &Sink{URL: u, Client: &http.Client{}}
-	done := make(chan error)
-	go func() { done <- s.Run() }()
-
-	go sink.Send(&testMsg{e: lightning.Event{"specversion": "2.0", "data": "hello"}})
-}

@@ -19,6 +19,8 @@ under the License.
 
 package lightning
 
+import "fmt"
+
 // Endpoint is implemented by sources and sinks
 type Endpoint interface {
 	// Close initiates shut-down of the endpoint, concurrent safe.
@@ -50,6 +52,9 @@ type Sink interface {
 func Transfer(source Source, sink Sink) (err error) {
 	var m Message
 	for m, err = source.Receive(); err == nil; m, err = source.Receive() {
+		if m == nil {
+			panic(fmt.Sprintf("got nil from %T", source))
+		}
 		err = sink.Send(m)
 	}
 	return
