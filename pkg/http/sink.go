@@ -34,6 +34,11 @@ type Sink struct {
 	Log    *zap.Logger
 }
 
+func NewSink(u *url.URL, c *http.Client, l *zap.Logger) *Sink {
+	s := &Sink{URL: u, Client: c, Log: l.Named(lightning.UniqueID("http-sink"))}
+	s.Log.Info("client", zap.String("URL", u.String()))
+	return s
+}
 func (s *Sink) Close()      {}
 func (s *Sink) Wait() error { return nil }
 
@@ -43,6 +48,7 @@ func (s *Sink) Send(m lightning.Message) error {
 		URL:    s.URL,
 		Header: http.Header{},
 	}
+	s.Log.Debug("send", zap.String("post", s.URL.String()))
 	if err := MakeMessage(m, &req); err != nil {
 		return err
 	}

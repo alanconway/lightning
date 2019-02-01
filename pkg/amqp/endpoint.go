@@ -40,6 +40,9 @@ type Endpoint struct {
 }
 
 func (e *Endpoint) init(log *zap.Logger, onClose func()) {
+	if log == nil {
+		log = zap.NewNop()
+	}
 	e.log = log
 	e.onClose = onClose
 	e.busy.Add(1) // e.close() will call Done()

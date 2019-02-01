@@ -20,8 +20,10 @@ under the License.
 package lightning
 
 import (
+	"fmt"
 	"net"
 	"strings"
+	"sync/atomic"
 	"syscall"
 )
 
@@ -40,3 +42,8 @@ func IsRefused(err error) bool {
 		}
 	}
 }
+
+var id int64
+
+// UniqueID returns a unique (within this process) ID string beginning with s
+func UniqueID(s string) string { return fmt.Sprintf("%v%v", s, atomic.AddInt64(&id, 1)) }

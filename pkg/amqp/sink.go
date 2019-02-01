@@ -108,7 +108,7 @@ func NewClientSink(u *url.URL, log *zap.Logger, opts ...electron.ConnectionOptio
 		c.Close(nil)
 		return nil, err
 	} else {
-		s := NewSink(log.Named("sink > " + u.String()))
+		s := NewSink(log.Named(lightning.UniqueID("amqp-sink")))
 		s.Add(snd)
 		return s, nil
 	}
@@ -119,7 +119,7 @@ func NewServerSink(network, address string, log *zap.Logger, opts ...electron.Co
 	if l, err := net.Listen(network, address); err != nil {
 		return nil, err
 	} else {
-		s := NewSink(log.Named("sink < " + l.Addr().String()))
+		s := NewSink(log.Named(lightning.UniqueID("amqp-sink")))
 		s.Serve(l, opts...)
 		return s, nil
 	}

@@ -33,7 +33,7 @@ var logger *zap.Logger
 
 func init() {
 	// Change this to zap.NewDevelopment() for debugging
-	logger = zap.NewNop()
+	logger, _ = zap.NewDevelopment()
 }
 
 func textEvent(data string) lightning.Event {
@@ -81,12 +81,12 @@ func matchStructured(t test.TB, want lightning.Event, got lightning.Message) {
 func TestClientSinkServerSource(tt *testing.T) {
 	t := test.New(tt)
 
-	source, err := NewServerSource("tcp", ":0", 10, logger)
+	source, err := NewServerSource("tcp", ":0", nil, 10, logger)
 	t.RequireNil(err)
 	defer source.Close()
 	t.RequireEqual(1, len(source.Listeners()))
 
-	u := url.URL{Host: source.Listeners()[0].Addr().String(), Path: t.Name()}
+	u := url.URL{Host: source.Listeners()[0].Addr().String(), Path: "client-sink"}
 	sink, err := NewClientSink(&u, logger)
 	t.RequireNil(err)
 	defer sink.Close()
@@ -122,7 +122,7 @@ func TestClientSourceServerSink(tt *testing.T) {
 	t.RequireNil(err)
 	t.RequireEqual(1, len(sink.Listeners()))
 
-	u := url.URL{Host: sink.Listeners()[0].Addr().String(), Path: t.Name()}
+	u := url.URL{Host: sink.Listeners()[0].Addr().String(), Path: "client-source"}
 	source, err := NewClientSource(&u, 10, logger)
 	t.RequireNil(err)
 
