@@ -21,9 +21,7 @@ under the License.
 package mqtt
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -153,7 +151,7 @@ func (s *Source) closeErr(err error, disconnect bool) {
 }
 
 func (s *Source) onMessage(c paho.Client, m paho.Message) {
-	s.incoming <- &message{bytes.NewReader(m.Payload())}
+	s.incoming <- message(m.Payload())
 }
 
 func (s *Source) onConnectionLost(c paho.Client, err error) {
@@ -161,9 +159,9 @@ func (s *Source) onConnectionLost(c paho.Client, err error) {
 	s.closeErr(err, false)
 }
 
-type message struct{ reader io.Reader }
+type message []byte
 
-func (m *message) Event() (lightning.Event, error) { return m.Structured().Event() }
-func (m *message) Structured() *lightning.Structured {
-	return &lightning.Structured{Reader: m.reader, Format: lightning.JSONFormat}
+func (m message) Event() (lightning.Event, error) { return m.Structured().Event() }
+func (m message) Structured() *lightning.Structured {
+	return &lightning.Structured{Bytes: ([]byte)(m), Format: lightning.JSONFormat}
 }

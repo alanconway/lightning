@@ -20,9 +20,6 @@ under the License.
 package lightning
 
 import (
-	"bytes"
-	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/alanconway/lightning/internal/pkg/test"
@@ -49,44 +46,18 @@ func TestEventAttrs(tt *testing.T) {
 	t.ExpectEqual("b", e.ContentType())
 }
 
-func TestEventDataValue(tt *testing.T) {
+func TestEventData(tt *testing.T) {
 	t := test.New(tt)
 
 	e := Event{"data": 1}
 	t.ExpectEqual(1, e["data"])
-	v, err := e.DataValue()
-	t.ExpectEqual(err, nil)
-	t.ExpectEqual(1, v)
+	t.ExpectEqual(1, e.Data())
 
 	e = Event{"data": []byte{42}}
-	v, err = e.DataValue()
-	t.ExpectEqual(err, nil)
-	t.ExpectEqual(v, []byte{42})
+	t.ExpectEqual(e.Data(), []byte{42})
 
-	e = Event{"data": bytes.NewReader([]byte{32})}
-	v, err = e.DataValue()
-	t.ExpectEqual(err, nil)
-	t.ExpectEqual(v, []byte{32})
-}
-
-func TestEventDataReader(tt *testing.T) {
-	t := test.New(tt)
-
-	e := Event{"data": 1}
-	t.ExpectEqual(1, e["data"])
-	r := e.DataReader()
-	t.ExpectEqual(nil, r)
-
-	e = Event{"data": []byte{42}}
-	r = e.DataReader()
-	v, err := ioutil.ReadAll(r.(io.Reader))
-	t.ExpectEqual(nil, err)
-	t.ExpectEqual([]byte{42}, v)
-
-	e = Event{"data": bytes.NewReader([]byte{32})}
-	r = e.DataReader()
-	v, err = ioutil.ReadAll(r.(io.Reader))
-	t.ExpectEqual([]byte{32}, v)
+	e = Event{"data": []byte{32}}
+	t.ExpectEqual(e.Data(), []byte{32})
 }
 
 func TestEventFormat(tt *testing.T) {
@@ -96,9 +67,7 @@ func TestEventFormat(tt *testing.T) {
 	s, err := e.Format(JSONFormat)
 	t.ExpectNil(err)
 	t.ExpectEqual("application/cloudevents+json", s.Format.Name())
-	b, err := ioutil.ReadAll(s.Reader)
-	t.ExpectNil(err)
-	t.ExpectEqual(`{"contenttype":"text/plain","data":"hello","specversion":"2.0"}`, string(b))
+	t.ExpectEqual(`{"contenttype":"text/plain","data":"hello","specversion":"2.0"}`, string(s.Bytes))
 	// Make a new structured event since we've consumed the data in this one
 	s, err = e.Format(JSONFormat)
 	e2, err := s.Event()

@@ -39,10 +39,6 @@ again)
 Forwards structured messages without decoding and re-encoding if
 both Source and Sink accept the format.
 
-Streams binary event data from Source to Sink using io.Reader (like
-the standard net.http request package) to avoid imposing extra
-copying
-
 TODO
 
 Experimental code, needs more testing and review.

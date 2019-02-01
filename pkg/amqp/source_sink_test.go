@@ -20,7 +20,6 @@ under the License.
 package amqp
 
 import (
-	"io/ioutil"
 	"net/url"
 	"testing"
 
@@ -58,8 +57,6 @@ func matchBinary(t test.TB, want lightning.Event, got lightning.Message) {
 	t.Expect(got.Structured() == nil, "expected binary, got structured")
 	if e, err := got.Event(); err != nil {
 		t.Error(err)
-	} else if _, err = e.DataValue(); err != nil {
-		t.Error(err)
 	} else {
 		t.ExpectEqual(want, e)
 	}
@@ -71,10 +68,8 @@ func matchStructured(t test.TB, want lightning.Event, got lightning.Message) {
 		t.Error(err)
 	} else if s := got.Structured(); s == nil {
 		t.Error("not structured")
-	} else if gotBytes, err := ioutil.ReadAll(s.Reader); err != nil {
-		t.Error(err)
 	} else {
-		t.ExpectEqual(string(wantBytes), string(gotBytes))
+		t.ExpectEqual(string(wantBytes), string(s.Bytes))
 	}
 }
 

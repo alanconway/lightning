@@ -26,10 +26,6 @@ Lightning does the following:
 * Manages an extendable set of Formats, automatically Marshals/Unmarshals
   structured events correctly based on the format media type.
 
-* Uses io.Reader() to avoid reading event data into memory until required,
-  and to stream large events from source to sink.
-  (similar to the standard Go http.Request.Body)
-
 * Separates the implementation Sources and Sinks.  Sources and Sinks
   for arbitrary protocols can be mixed and matched.
 

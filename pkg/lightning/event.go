@@ -20,30 +20,25 @@ under the License.
 package lightning
 
 import (
-	"bytes"
 	"fmt"
-	"io"
-	"io/ioutil"
 )
 
-// Attributes provides attribute names that differ between cloudEvents 0.1 and 0.2
-type Attributes struct{ version, SpecVersion, ContentType, Data string }
+// AttrNames provides attribute names that differ between cloudEvents 0.1 and 0.2
+type AttrNames struct{ version, SpecVersion, ContentType, Data string }
 
-var versions = []*Attributes{
-	&Attributes{"0.1", "cloudEventsVersion", "contentType", data},
-	&Attributes{"0.2", "specversion", "contenttype", data},
+var versions = []*AttrNames{
+	&AttrNames{"0.1", "cloudEventsVersion", "contentType", data},
+	&AttrNames{"0.2", "specversion", "contenttype", data},
 }
 
+// Data is the name of the data attribute.
 const data = "data"
 
 // Event is a simple name/value attribute map.
 //
 // Only the 'data', 'contenttype' and 'specversion' attributes are
 // used in this package, others are simply name:value pairs.
-// See Event.Attributes() for dealing with attribute version differences
-//
-// the 'data' attribute may be an io.Reader or []byte for binary data,
-// or a Go native value.
+// See Event.AttrNames() for dealing with attribute version differences
 //
 type Event map[string]interface{}
 
@@ -55,10 +50,10 @@ func (e Event) getStr(name string) string {
 	}
 }
 
-// Attributes returns attribute names that vary by cloudEvents, appropriate for this event.
-// Returns nil if the event has no known specversion attribute.
-func (e Event) Attributes() *Attributes {
-	var a *Attributes
+// Names returns attribute names that vary by cloudEvents version.
+// Uses the specversion of this event if set, else the latest known specversion.
+func (e Event) Names() *AttrNames {
+	var a *AttrNames
 	for _, a = range versions {
 		if v := e.getStr(a.SpecVersion); v == a.version {
 			break
@@ -67,60 +62,25 @@ func (e Event) Attributes() *Attributes {
 	return a // Default to latest
 }
 
-// ContentType returns the contenttype
-func (e Event) ContentType() string { return e.getStr(e.Attributes().ContentType) }
+// SpecVersion or "" if absent.
+func (e Event) SpecVersion() string { return e.getStr(e.Names().SpecVersion) }
 
-// SpecVersion returns the specversion
-func (e Event) SpecVersion() string { return e.getStr(e.Attributes().SpecVersion) }
+// ContentType or "" if absent.
+func (e Event) ContentType() string      { return e.getStr(e.Names().ContentType) }
+func (e Event) SetContentType(ct string) { e[e.Names().ContentType] = ct }
 
-// DataIsBytes returns true if the data attribute types is []bytes or io.Reader
-func (e Event) DataIsBytes() bool {
-	switch e[data].(type) {
-	case []byte:
-		return true
-	case io.Reader:
-		return true
-	default:
-		return false
-	}
-}
-
-// DataReader returns a reader if the data attribute types is []bytes or io.Reader
-// nil otherwise.
-func (e Event) DataReader() io.Reader {
-	switch d := e[data].(type) {
-	case []byte:
-		return bytes.NewReader(d) // Wrap []byte data in a reader
-	case io.Reader:
-		return d // Data is already a reader
-	default:
-		return nil // Data is not binary
-	}
-}
-
-// DataValue returns the data attribute as a Go value.
-// Note if data is an io.Reader it is read immediately and replaced with []byte.
-func (e Event) DataValue() (interface{}, error) {
-	var err error
-	if r, ok := e[data].(io.Reader); ok {
-		e[data], err = ioutil.ReadAll(r) // Read entire value
-	}
-	return e[data], err
-}
-
-func (e Event) SetData(v interface{}) {
-	e[data] = v
-}
+func (e Event) Data() interface{}     { return e[data] }
+func (e Event) SetData(v interface{}) { e[data] = v }
 
 // FIXME aconway 2019-02-01: name of Format vs. Structured? Structured not a noun?
 // FIXME aconway 2019-02-01: reader/bytes as a type, use for both
 // event and structured...
 
 func (e Event) Format(f Format) (*Structured, error) {
-	if b, err := f.Marshal(e); err == nil {
-		return &Structured{bytes.NewReader(b), f}, nil
+	if b, err := f.Marshal(e); err != nil {
+		return nil, err
 	} else {
-		return &Structured{}, err
+		return &Structured{Bytes: b, Format: f}, nil
 	}
 }
 

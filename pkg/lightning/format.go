@@ -62,9 +62,6 @@ type jsonFormat struct{}
 func (jsonFormat) Name() string { return "application/cloudevents+json" }
 
 func (jsonFormat) Marshal(e Event) ([]byte, error) {
-	if _, err := e.DataValue(); err != nil { // Convert Reader to []byte
-		return nil, err
-	}
 	return json.Marshal(e)
 }
 

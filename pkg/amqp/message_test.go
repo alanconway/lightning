@@ -30,8 +30,7 @@ import (
 func TestBinaryNative(tt *testing.T) {
 	t := test.New(tt)
 	e := lightning.Event{"specversion": "2.0", "id": "foo", "data": "hello"}
-	am, err := NewBinary(e)
-	t.RequireNil(err)
+	am := NewBinary(e)
 	t.ExpectEqual(
 		map[string]interface{}{"cloudevents:specversion": "2.0", "cloudevents:id": "foo"},
 		am.ApplicationProperties())
@@ -40,7 +39,7 @@ func TestBinaryNative(tt *testing.T) {
 	m := Message{AMQP: am}
 	s := m.Structured()
 	t.Expect(s == nil, "expect not structured")
-	e, err = m.Event()
+	e, err := m.Event()
 	t.ExpectNil(err)
 	t.ExpectEqual(lightning.Event{"id": "foo", "specversion": "2.0", "data": "hello"}, e)
 }
@@ -48,8 +47,7 @@ func TestBinaryNative(tt *testing.T) {
 func TestBinaryContentType(tt *testing.T) {
 	t := test.New(tt)
 	e := lightning.Event{"specversion": "2.0", "contenttype": "text/plain", "data": []byte("hello")}
-	am, err := NewBinary(e)
-	t.RequireNil(err)
+	am := NewBinary(e)
 	t.ExpectEqual("text/plain", am.ContentType())
 	t.ExpectEqual(
 		map[string]interface{}{"cloudevents:specversion": "2.0"},
@@ -59,9 +57,8 @@ func TestBinaryContentType(tt *testing.T) {
 	m := Message{AMQP: am}
 	s := m.Structured()
 	t.Expect(s == nil, "expect not structured")
-	e, err = m.Event()
+	e, err := m.Event()
 	t.ExpectNil(err)
-	e.DataValue()
 	t.ExpectEqual(lightning.Event{"specversion": "2.0", "contenttype": "text/plain", "data": []byte("hello")}, e)
 }
 
@@ -71,7 +68,7 @@ func TestStructured(tt *testing.T) {
 
 	s, err := e.Format(lightning.JSONFormat)
 	t.RequireNil(err)
-	am, err := NewStructured(s)
+	am := NewStructured(s)
 	t.ExpectNil(err)
 	t.ExpectEqual(lightning.JSONFormat.Name(), am.ContentType())
 	t.ExpectEqual(0, len(am.ApplicationProperties()))

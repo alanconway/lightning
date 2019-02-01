@@ -20,6 +20,7 @@ under the License.
 package http
 
 import (
+	"bytes"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -32,7 +33,7 @@ var cePrefix = "ce-"
 
 func MakeStructured(s *lightning.Structured, req *http.Request) {
 	req.Header.Set("content-type", s.Format.Name())
-	req.Body = ioutil.NopCloser(s.Reader)
+	req.Body = ioutil.NopCloser(bytes.NewReader(s.Bytes))
 }
 
 func headerString(v interface{}) string {
@@ -44,19 +45,22 @@ func headerString(v interface{}) string {
 	}
 }
 
+// FIXME aconway 2019-02-01: can centralize a lot of the MakeMessage logic
+
 func MakeBinary(e lightning.Event, req *http.Request) error {
 	ct := e.ContentType()
-	if ct == "" || e.DataReader() == nil {
-		// Can't make binary event, fall back to structured JSON
-		s, err := e.Format(lightning.JSONFormat)
-		if err != nil {
+	b, ok := e.Data().([]byte)
+	if ct == "" || !ok { // Can't make binary event, fall back to structured JSON
+		if s, err := e.Format(lightning.JSONFormat); err != nil {
 			return err
+		} else {
+			MakeStructured(s, req)
 		}
-		MakeStructured(s, req)
 	} else {
-		req.Header.Set("content-type", ct)
+		req.Body = ioutil.NopCloser(bytes.NewReader(b))
+		req.Header.Set("Content-Type", ct)
 		for k, v := range e {
-			a := e.Attributes()
+			a := e.Names()
 			// Data and content type are on HTTP headers and body
 			if k != a.Data && k != a.ContentType {
 				req.Header.Set(cePrefix+k, headerString(v))
@@ -81,9 +85,10 @@ func MakeMessage(m lightning.Message, req *http.Request) error {
 type Message struct{ Req *http.Request }
 
 func (m Message) Structured() *lightning.Structured {
-	ct := m.Req.Header.Get("content-type")
-	if lightning.IsFormat(ct) {
-		return &lightning.Structured{Reader: m.Req.Body, Format: lightning.Formats.Get(ct)}
+	if b, err := ioutil.ReadAll(m.Req.Body); err != nil {
+		return nil
+	} else if ct := m.Req.Header.Get("content-type"); lightning.IsFormat(ct) {
+		return &lightning.Structured{Bytes: b, Format: lightning.Formats.Get(ct)}
 	}
 	return nil
 }
@@ -94,16 +99,20 @@ func (m Message) Event() (lightning.Event, error) {
 	}
 	e := make(lightning.Event)
 	for k, v := range m.Req.Header {
-		n := strings.ToLower(k)
-		if strings.HasPrefix(n, cePrefix) {
-			e[strings.TrimPrefix(n, cePrefix)] = v
+		if len(v) > 0 {
+			if l := strings.ToLower(k); strings.HasPrefix(l, cePrefix) {
+				e[strings.TrimPrefix(l, cePrefix)] = v[0]
+			}
 		}
 	}
-	attrs := e.Attributes()
-	ct := m.Req.Header.Get("Content-Type")
-	if ct != "" {
-		e[attrs.ContentType] = ct
+	if ct := m.Req.Header.Get("Content-Type"); ct != "" {
+		e.SetContentType(ct)
 	}
-	e.SetData(m.Req.Body)
+	if m.Req.Body != http.NoBody {
+		e.SetData(m.Req.Body)
+	} else {
+		e.SetData([]byte{})
+		panic("FIXME")
+	}
 	return e, nil
 }

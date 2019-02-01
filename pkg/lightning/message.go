@@ -19,11 +19,6 @@ under the License.
 
 package lightning
 
-import (
-	"io"
-	"io/ioutil"
-)
-
 // Message is a message created by a Source, containing a cloud-event
 type Message interface {
 	// Event decodes and returns the event.
@@ -41,19 +36,15 @@ type Message interface {
 
 // Structured holds the entire event structure serialized as bytes.
 type Structured struct {
-	// Reader for encoded event bytes
-	Reader io.Reader
 	// Format used to encode/decode the event bytes
 	Format Format
+	// The encoded event bytes
+	Bytes []byte
 }
 
 // Event decodes a structured event.
-// Consumes event data, call at most once.
 func (s *Structured) Event() (e Event, err error) {
-	var b []byte
-	if b, err = ioutil.ReadAll(s.Reader); err == nil {
-		err = s.Format.Unmarshal(b, &e)
-	}
+	err = s.Format.Unmarshal(s.Bytes, &e)
 	return
 }
 

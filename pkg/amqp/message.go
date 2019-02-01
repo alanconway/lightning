@@ -19,9 +19,6 @@ under the License.
 package amqp
 
 import (
-	"bytes"
-	"io"
-	"io/ioutil"
 	"strings"
 
 	"github.com/alanconway/lightning/pkg/lightning"
@@ -30,51 +27,43 @@ import (
 
 type Message struct{ AMQP amqp.Message }
 
-func NewStructured(s *lightning.Structured) (amqp.Message, error) {
-	d, err := ioutil.ReadAll(s.Reader)
-	if err == nil {
-		am := amqp.NewMessageWith(d)
-		am.SetContentType(s.Format.Name())
-		return am, nil
-	}
-	return nil, err
+func NewStructured(s *lightning.Structured) amqp.Message {
+	am := amqp.NewMessageWith(s.Bytes)
+	am.SetContentType(s.Format.Name())
+	return am
 }
 
-func NewBinary(e lightning.Event) (am amqp.Message, err error) {
-	attrs := e.Attributes()
-	var d interface{}
-	if d, err = e.DataValue(); err == nil {
-		am = amqp.NewMessageWith(d)
-		if ct, ok := e[attrs.ContentType].(string); ok {
-			am.SetContentType(ct)
-		}
-		props := make(map[string]interface{})
-		for k, v := range e {
-			// Data and content type are set on AMQP body and content-type
-			if k != attrs.Data && k != attrs.ContentType {
-				props[cePrefix+k] = v
-			}
-			am.SetApplicationProperties(props)
-		}
+func NewBinary(e lightning.Event) amqp.Message {
+	am := amqp.NewMessageWith(e.Data())
+	if ct := e.ContentType(); ct != "" {
+		am.SetContentType(ct)
 	}
-	return
+	props := make(map[string]interface{})
+	attrs := e.Names()
+	for k, v := range e {
+		// Data and content type are set on AMQP body and content-type
+		if k != attrs.Data && k != attrs.ContentType {
+			props[cePrefix+k] = v
+		}
+		am.SetApplicationProperties(props)
+	}
+	return am
 }
 
 func NewMessage(m lightning.Message) (am amqp.Message, err error) {
 	if s := m.Structured(); s != nil {
-		return NewStructured(s)
+		return NewStructured(s), nil
 	} else {
 		e, err := m.Event()
 		if err != nil {
 			return nil, err
 		}
-		return NewBinary(e)
+		return NewBinary(e), nil
 	}
 }
 
-// BodyReader for binary AMQP body - error if body is not binary
-func (m Message) BodyReader() (r io.Reader, err error) {
-	// TODO aconway 2019-01-16: bug in amqp.Message.Unmarshal - leaks panic
+func Unmarshal(m amqp.Message, v interface{}) (err error) {
+	// TODO aconway 2019-01-16: workaround bug in amqp.Message.Unmarshal - panics
 	defer func() {
 		r := recover()
 		switch r := r.(type) {
@@ -85,21 +74,19 @@ func (m Message) BodyReader() (r io.Reader, err error) {
 			panic(r)
 		}
 	}()
-	var b []byte
-	m.AMQP.Unmarshal(&b)
-	return bytes.NewReader(b), nil
+	m.Unmarshal(v)
+	return nil
 }
 
 func (m Message) Structured() *lightning.Structured {
-	// Must have binary body and a cloud-event format ContentType
-	ct := m.AMQP.ContentType()
-	if lightning.IsFormat(ct) {
-		r, err := m.BodyReader()
-		if err == nil {
-			return &lightning.Structured{Reader: r, Format: lightning.Formats.Get(ct)}
-		}
+	var b []byte
+	if ct := m.AMQP.ContentType(); !lightning.IsFormat(ct) {
+		return nil
+	} else if err := Unmarshal(m.AMQP, &b); err != nil {
+		return nil
+	} else {
+		return &lightning.Structured{Bytes: b, Format: lightning.Formats.Get(ct)}
 	}
-	return nil
 }
 
 var cePrefix = "cloudevents:"
@@ -114,11 +101,11 @@ func (m Message) Event() (lightning.Event, error) {
 			e[strings.TrimPrefix(k, cePrefix)] = v
 		}
 	}
-	attrs := e.Attributes()
-	if e[attrs.ContentType] == nil && m.AMQP.ContentType() != "" {
-		e[attrs.ContentType] = m.AMQP.ContentType()
+	a := e.Names()
+	if e[a.ContentType] == nil && m.AMQP.ContentType() != "" {
+		e[a.ContentType] = m.AMQP.ContentType()
 	}
-	if e[attrs.ContentType] == nil { // Native data type
+	if e[a.ContentType] == nil { // Native data type
 		switch b := m.AMQP.Body().(type) {
 		case amqp.Binary:
 			e.SetData([]byte(b))
@@ -127,11 +114,12 @@ func (m Message) Event() (lightning.Event, error) {
 			e.SetData(b)
 		}
 	} else { // content-type described bytes
-		r, err := m.BodyReader()
-		if err != nil {
+		var b []byte
+		if err := Unmarshal(m.AMQP, &b); err != nil {
 			return nil, err
+		} else {
+			e.SetData(b)
 		}
-		e.SetData(r)
 	}
 	return e, nil
 }
