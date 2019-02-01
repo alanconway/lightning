@@ -29,11 +29,12 @@ import (
 	"go.uber.org/zap"
 )
 
-// ServerSource is a HTTP server that converts requests to cloud-events.
-type ServerSource struct {
+// Source is a HTTP server that converts requests to cloud-events.
+type Source struct {
 	// HTTP server settings. Do not modify Server.Handler
 	Server http.Server
 
+	listener  net.Listener
 	log       *zap.Logger
 	incoming  chan lightning.Message
 	closeOnce sync.Once
@@ -41,8 +42,8 @@ type ServerSource struct {
 	err       lightning.AtomicError
 }
 
-func NewServerSource(log *zap.Logger) *ServerSource {
-	s := &ServerSource{
+func NewSource(log *zap.Logger) *Source {
+	s := &Source{
 		log:      log,
 		incoming: make(chan lightning.Message),
 	}
@@ -53,7 +54,7 @@ func NewServerSource(log *zap.Logger) *ServerSource {
 	return s
 }
 
-func (s *ServerSource) Receive() (lightning.Message, error) {
+func (s *Source) Receive() (lightning.Message, error) {
 	if m, ok := <-s.incoming; ok {
 		return m, nil
 	} else {
@@ -61,11 +62,11 @@ func (s *ServerSource) Receive() (lightning.Message, error) {
 	}
 }
 
-func (s *ServerSource) Close()      { s.Server.Shutdown(nil); s.err.Set(io.EOF); s.busy.Done() }
-func (s *ServerSource) Wait() error { s.busy.Wait(); return s.err.Get() }
+func (s *Source) Close()      { s.Server.Shutdown(nil); s.err.Set(io.EOF); s.busy.Done() }
+func (s *Source) Wait() error { s.busy.Wait(); return s.err.Get() }
 
-// Serve starts serving a listener, returns immediately.
-func (s *ServerSource) Serve(l net.Listener) {
+// Start serving a listener, returns immediately.
+func (s *Source) Start(l net.Listener) {
 	s.busy.Add(1)
 	go func() { defer s.busy.Done(); s.err.Set(s.Server.Serve(l)) }()
 }
