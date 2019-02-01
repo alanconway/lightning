@@ -87,7 +87,7 @@ func TestClientSinkServerSource(tt *testing.T) {
 	t.RequireEqual(1, len(source.Listeners()))
 
 	u := url.URL{Host: source.Listeners()[0].Addr().String(), Path: "client-sink"}
-	sink, err := NewClientSink(&u, logger)
+	sink, err := NewClientSink(&u, 10, logger)
 	t.RequireNil(err)
 	defer sink.Close()
 
@@ -118,7 +118,7 @@ func TestClientSinkServerSource(tt *testing.T) {
 func TestClientSourceServerSink(tt *testing.T) {
 	t := test.New(tt)
 
-	sink, err := NewServerSink("tcp", ":0", logger)
+	sink, err := NewServerSink("tcp", ":0", 10, logger)
 	t.RequireNil(err)
 	t.RequireEqual(1, len(sink.Listeners()))
 

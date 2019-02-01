@@ -20,51 +20,54 @@ under the License.
 package amqp
 
 import (
+	"io"
 	"net"
 	"net/url"
-	"sync"
 
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
+	"qpid.apache.org/amqp"
 	"qpid.apache.org/electron"
 )
 
-// Sink is an AMQP sink sends messages to one or more electron.Sender
+// Sink sends event messages one or more electron.Sender.
+// Multiple senders compete, each message goes to at most one sender.
 type Sink struct {
 	Endpoint
-	senders sync.Map
+	outgoing chan amqp.Message
 }
 
-func NewSink(log *zap.Logger) *Sink {
-	var s Sink
-	s.Endpoint.init(log, func() {})
-	return &s
+func NewSink(capacity int, log *zap.Logger) *Sink {
+	s := &Sink{outgoing: make(chan amqp.Message, capacity)}
+	s.Endpoint.init(log, func() { close(s.outgoing) })
+	return s
 }
 
-// Add a Sender to the sink. Event messages are sent to all senders.
+// Add a Sender to the sink.
 func (s *Sink) Add(snd electron.Sender) {
 	s.connections.Store(snd.Connection(), nil)
-	s.log.Info("add", zap.String("sender", snd.String()))
-	s.senders.Store(snd, nil)
+	s.log.Debug("add", zap.String("sender", snd.String()))
+	go func() {
+		for snd.Error() == nil {
+			snd.SendForget((<-s.outgoing))
+		}
+		if err := snd.Error(); err != io.EOF {
+			s.closeErr(err)
+		}
+	}()
 }
 
 func (s *Sink) Send(m lightning.Message) (err error) {
 	s.log.Debug("send")
-	am, err := NewMessage(m)
-	if err == nil {
-		s.senders.Range(func(k, _ interface{}) bool {
-			// TODO aconway 2019-01-31: QoS 2, propagate accept/reject
-			snd := k.(electron.Sender)
-			snd.SendForget(am)
-			if err = snd.Error(); err != nil {
-				s.closeErr(err)
-				return false
-			}
-			return true
-		})
+	if am, err := NewMessage(m); err != nil {
+		return err
+	} else {
+		s.outgoing <- am
+		return nil
 	}
-	return
 }
+
+// FIXME aconway 2019-02-01: specify allowed targets
 
 // Serve adds l to Listeners() and starts a server to Add() incoming Senders.
 func (s *Sink) Serve(l net.Listener, opts ...electron.ConnectionOption) {
@@ -98,7 +101,7 @@ func (s *Sink) Serve(l net.Listener, opts ...electron.ConnectionOption) {
 }
 
 // NewClientSink creates a sink, connects to u.Host and sends to u.Path
-func NewClientSink(u *url.URL, log *zap.Logger, opts ...electron.ConnectionOption) (*Sink, error) {
+func NewClientSink(u *url.URL, capacity int, log *zap.Logger, opts ...electron.ConnectionOption) (*Sink, error) {
 	if c, err := electron.Dial("tcp", u.Host, opts...); err != nil {
 		return nil, err
 	} else if snd, err := c.Sender(electron.Target(u.Path)); err != nil {
@@ -108,18 +111,18 @@ func NewClientSink(u *url.URL, log *zap.Logger, opts ...electron.ConnectionOptio
 		c.Close(nil)
 		return nil, err
 	} else {
-		s := NewSink(log.Named(lightning.UniqueID("amqp-sink")))
+		s := NewSink(capacity, log.Named(lightning.UniqueID("amqp-sink")))
 		s.Add(snd)
 		return s, nil
 	}
 }
 
 // NewServerSink creates a server sink listening on network, address
-func NewServerSink(network, address string, log *zap.Logger, opts ...electron.ConnectionOption) (*Sink, error) {
+func NewServerSink(network, address string, capacity int, log *zap.Logger, opts ...electron.ConnectionOption) (*Sink, error) {
 	if l, err := net.Listen(network, address); err != nil {
 		return nil, err
 	} else {
-		s := NewSink(log.Named(lightning.UniqueID("amqp-sink")))
+		s := NewSink(capacity, log.Named(lightning.UniqueID("amqp-sink")))
 		s.Serve(l, opts...)
 		return s, nil
 	}

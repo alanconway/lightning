@@ -87,6 +87,8 @@ func accept(listener net.Listener, opts ...electron.ConnectionOption) (c electro
 	return
 }
 
+// FIXME aconway 2019-02-01: specify allowed sources
+
 // Serve adds l to Listeners() and starts a server to Add() incoming Receivers.
 func (s *Source) Serve(l net.Listener, capacity int, opts ...electron.ConnectionOption) {
 	s.listeners.Store(l, nil)
