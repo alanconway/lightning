@@ -58,11 +58,11 @@ func TestSource(tt *testing.T) {
 
 	topics := map[string]byte{"foo": 0, "bar": 1}
 	sc := SourceConfig{Filters: topics, Capacity: 100, ClientID: os.Args[0]}
-	sc.URL.URL = &url.URL{Host: broker.Addr, User: url.UserPassword("testuser", "testpassword")}
+	sc.URL = &url.URL{Host: broker.Addr, User: url.UserPassword("testuser", "testpassword")}
 	source, err := NewSource(&sc, zap.NewNop())
 	t.RequireNil(err)
 
-	s, err := newSender(sc.URL.URL)
+	s, err := newSender(sc.URL)
 	t.RequireEqual(nil, err)
 
 	// Initial messages to foo will be lost until MQTT source is subscribed

@@ -24,6 +24,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sync"
@@ -35,7 +36,7 @@ import (
 )
 
 type SourceConfig struct {
-	lightning.CommonConfig
+	URL *url.URL
 	// Map topic filter to QoS (0,1 or 2)
 	Filters map[string]byte
 	// Capacity to buffer incoming events
@@ -45,7 +46,7 @@ type SourceConfig struct {
 	// AutoReconnect enables auto re-connect
 	AutoReconnect bool
 	// MaxReconnectInterval sets the max interval between re-connect attempts
-	MaxReconnectInterval lightning.Duration
+	MaxReconnectInterval time.Duration
 }
 
 // NewSourceConfig sets non-zero defaults
@@ -53,12 +54,12 @@ func NewSourceConfig() *SourceConfig {
 	h, _ := os.Hostname()
 	clientid := fmt.Sprintf("%v-%v-%v", h, filepath.Base(os.Args[0]), os.Getpid())
 	sc := &SourceConfig{
+		URL:                  &url.URL{Scheme: "tcp", Host: ":1883"},
 		Capacity:             1000,
 		ClientID:             clientid,
 		AutoReconnect:        true,
-		MaxReconnectInterval: lightning.Duration{Duration: time.Second},
+		MaxReconnectInterval: time.Second,
 	}
-	sc.URL.MustParse("tcp://:1883")
 	return sc
 }
 
@@ -89,10 +90,10 @@ func NewSource(c *SourceConfig, l *zap.Logger) (*Source, error) {
 	opts.SetUsername(c.URL.User.Username()).SetPassword(p)
 	opts.SetConnectionLostHandler(s.onConnectionLost)
 	opts.SetAutoReconnect(c.AutoReconnect)
-	opts.SetMaxReconnectInterval(c.MaxReconnectInterval.Duration)
+	opts.SetMaxReconnectInterval(c.MaxReconnectInterval)
 	s.client = paho.NewClient(opts)
 	// paho will reconnect but won't retry initial connect, so do that here.
-	err := s.retryConnect(c.AutoReconnect, c.MaxReconnectInterval.Duration, time.Second/10)
+	err := s.retryConnect(c.AutoReconnect, c.MaxReconnectInterval, time.Second/10)
 	return s, err
 }
 

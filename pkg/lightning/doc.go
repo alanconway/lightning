@@ -18,21 +18,15 @@ under the License.
 */
 
 /*
-Package lighting provides interfaces and types used to build cloudevent
-transport bindings and adapters: "lightning connects the clouds"
+Package lighting provides interfaces and types to build multi-format,
+multi-protocol event sources and sinks. Lightning connects the clouds.
 
-WARNING this code is unfinished and experimental
-
-This package is intended for implementing cross-binding event
-adapters.  It simplifies the implementation of event Sources and
-Sinks, and provides generic translation between event formats and
-message modes independent of the Source/Sink implementations.
+WARNING UNSTABLE EXPERIMENTAL CODE
 
 Features
 
 Adapters are separated into independent Source and Sink.  Any
-Source/Sink implementations can be combined, so adapting between
-many bindings requires N implementations not N*N.
+Source/Sink implementations can be combined.
 
 Built-in conversion between binary/structured messages and multiple
 structured event formats independent of Source/Sink
@@ -57,10 +51,10 @@ https:github.com/cloudevents/spec/issues/261 cloudEvent spec is
 unclear about when json data is base64 encoded.  Currently we make
 an educated guess on the contenttype but this needs work.
 
-QoS: transport bindings like HTTP, AMQP, MQTT can provide varied
-QoS. To support at-least-once or exactly-once the sink needs to notify
-the source. Source and sink should also advertise their QoS range so
-both sides can degrade to the lowest level for performance, since the
+QoS: protocols like HTTP, AMQP, MQTT can provide varied QoS. To
+support at-least-once or exactly-once the sink needs to notify sthe
+source. Source and sink should also advertise their QoS range so both
+sides can degrade to the lowest level for performance, since the
 adapter's overall QoS will be that of the weakest link anyway.
 
 Performance: Current Source & Sink impls do more copying than

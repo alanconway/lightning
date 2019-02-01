@@ -64,8 +64,8 @@ func (s *ServerSource) Receive() (lightning.Message, error) {
 func (s *ServerSource) Close()      { s.Server.Shutdown(nil); s.err.Set(io.EOF); s.busy.Done() }
 func (s *ServerSource) Wait() error { s.busy.Wait(); return s.err.Get() }
 
-// Start listening to a listener
-func (s *ServerSource) Start(l net.Listener) {
+// Serve starts serving a listener, returns immediately.
+func (s *ServerSource) Serve(l net.Listener) {
 	s.busy.Add(1)
-	go func() { s.err.Set(s.Server.Serve(l)); s.busy.Done() }()
+	go func() { defer s.busy.Done(); s.err.Set(s.Server.Serve(l)) }()
 }

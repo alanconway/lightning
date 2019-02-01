@@ -2,9 +2,6 @@
   total used in directory 68 available 297261124
   drwxrwxr-x. 3 aconway aconway 4096 Jan 31 16:27 .
   drwxrwxr-x. 6 aconway aconway 4096 Jan 25 14:29 ..
-  -rw-rw-r--. 1 aconway aconway 3635 Jan 29 15:38 binding.go
-  -rw-rw-r--. 1 aconway aconway 2915 Jan 29 15:38 config.go
-  -rw-rw-r--. 1 aconway aconway 1668 Jan 25 14:44 config_test.go
   -rw-rw-r--. 1 aconway aconway 2652 Jan 29 14:53 doc.go
   -rw-rw-r--. 1 aconway aconway 3721 Jan 31 16:23 event.go
   -rw-rw-r--. 1 aconway aconway 3100 Jan 29 14:35 event_test.go
