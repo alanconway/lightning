@@ -40,6 +40,8 @@ const data = "data"
 // used in this package, others are simply name:value pairs.
 // See Event.AttrNames() for dealing with attribute version differences
 //
+// TODO integrate with strictly-typed cloudevent APIs that validate
+// specversion rules for attributes.
 type Event map[string]interface{}
 
 func (e Event) getStr(name string) string {
@@ -98,4 +100,30 @@ func (e Event) Copy() Event {
 		e2[k] = v
 	}
 	return e2
+}
+
+// DataString returns the data value as a string if it is of type
+// string or []byte. Otherwise returns ("", false).
+func (e Event) DataString() (string, bool) {
+	switch d := e.Data().(type) {
+	case string:
+		return d, true
+	case []byte:
+		return string(d), true
+	default:
+		return "", false
+	}
+}
+
+// DataBytes returns the data value as []byte if it is of type
+// string or []byte. Otherwise returns (nil, false).
+func (e Event) DataBytes() ([]byte, bool) {
+	switch d := e.Data().(type) {
+	case []byte:
+		return d, true
+	case string:
+		return []byte(d), true
+	default:
+		return nil, false
+	}
 }
