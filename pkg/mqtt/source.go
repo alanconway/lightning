@@ -127,7 +127,7 @@ func (s *Source) retryConnect(retry bool, max time.Duration, sleep time.Duration
 func waitErr(t paho.Token) error { t.Wait(); return t.Error() }
 
 func (s *Source) tryConnect() error {
-	s.log.Info("Connecting")
+	s.log.Debug("Connecting")
 	err := waitErr(s.client.Connect())
 	if err != nil {
 		s.log.Error("Connect failed", zap.Error(err))

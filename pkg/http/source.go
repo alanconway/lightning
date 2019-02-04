@@ -44,17 +44,17 @@ type Source struct {
 
 func NewSource(log *zap.Logger) *Source {
 	s := &Source{
-		log:      log,
+		log:      log.Named(lightning.UniqueID("http-source")),
 		incoming: make(chan lightning.Message),
 	}
 	s.Server.Handler = http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			if m, err := NewMessage(r); err != nil {
+		func(w http.ResponseWriter, req *http.Request) {
+			s.log.Debug("received", zap.Any("url", req.URL), zap.Any("headers", req.Header))
+			if m, err := NewMessage(req); err != nil {
 				s.err.Set(err)
 				s.Close()
 			} else {
 				s.incoming <- m
-
 			}
 		})
 	s.Server.ErrorLog, _ = zap.NewStdLogAt(s.log, zap.ErrorLevel)
@@ -75,6 +75,7 @@ func (s *Source) Wait() error { s.busy.Wait(); return s.err.Get() }
 
 // Start serving a listener, returns immediately.
 func (s *Source) Start(l net.Listener) {
+	s.log.Debug("listening", zap.Any("address", l.Addr()))
 	s.busy.Add(1)
 	go func() { defer s.busy.Done(); s.err.Set(s.Server.Serve(l)) }()
 }

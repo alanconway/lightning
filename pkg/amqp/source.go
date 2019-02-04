@@ -54,7 +54,7 @@ func (s *Source) Receive() (lightning.Message, error) {
 
 // Add a Receiver to the source and start receiving messages from it
 func (s *Source) Add(r electron.Receiver) {
-	s.log.Info("add", zap.String("receiver", r.String()))
+	s.log.Debug("add link", zap.String("receiver", r.String()))
 	s.connections.Store(r.Connection(), nil)
 	s.busy.Add(1)
 	go func() {
@@ -88,7 +88,8 @@ func accept(listener net.Listener, opts ...electron.ConnectionOption) (c electro
 	return
 }
 
-// FIXME aconway 2019-02-01: specify allowed sources
+// TODO aconway 2019-02-04: server sources and sinks should be configurable
+// to restrict the set of AMQP addresses they accept.
 
 // Serve adds l to Listeners() and starts a server to Add() incoming Receivers.
 func (s *Source) Serve(l net.Listener, capacity int, opts ...electron.ConnectionOption) {
@@ -133,21 +134,18 @@ func NewClientSource(u *url.URL, capacity int, logger *zap.Logger, opts ...elect
 		return nil, err
 	} else {
 		s := NewSource(logger.Named(lightning.UniqueID("amqp-source")))
-		s.log.Info("connected", zap.String("url", u.String()))
+		s.log.Debug("client connected", zap.String("url", u.String()))
 		s.Add(r)
 		return s, nil
 	}
 }
 
 // NewServerSource creates a source listening on network, address.
-// Only links with sources in the allowed list are accepted, unless
-// allowed is empty, in which case all links are accepted.
-func NewServerSource(network, address string, allowed []string, capacity int, log *zap.Logger, opts ...electron.ConnectionOption) (*Source, error) {
+func NewServerSource(network, address string, capacity int, log *zap.Logger, opts ...electron.ConnectionOption) (*Source, error) {
 	if l, err := net.Listen(network, address); err != nil {
 		return nil, err
 	} else {
 		s := NewSource(log.Named(lightning.UniqueID("amqp-source")))
-		s.log.Info("serving", zap.String("addr", l.Addr().String()))
 		s.Serve(l, capacity, opts...)
 		return s, nil
 	}

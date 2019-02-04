@@ -32,7 +32,7 @@ var logger *zap.Logger
 
 func init() {
 	// Change this to zap.NewDevelopment() for debugging
-	logger, _ = zap.NewDevelopment()
+	logger = zap.NewNop()
 }
 
 func textEvent(data string) lightning.Event {
@@ -76,7 +76,7 @@ func matchStructured(t test.TB, want lightning.Event, got lightning.Message) {
 func TestClientSinkServerSource(tt *testing.T) {
 	t := test.New(tt)
 
-	source, err := NewServerSource("tcp", ":0", nil, 10, logger)
+	source, err := NewServerSource("tcp", ":0", 10, logger)
 	t.RequireNil(err)
 	defer source.Close()
 	t.RequireEqual(1, len(source.Listeners()))

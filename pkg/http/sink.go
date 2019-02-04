@@ -36,13 +36,18 @@ type Sink struct {
 
 func NewSink(u *url.URL, c *http.Client, l *zap.Logger) *Sink {
 	s := &Sink{URL: u, Client: c, Log: l.Named(lightning.UniqueID("http-sink"))}
-	s.Log.Info("client", zap.String("URL", u.String()))
+	s.Log.Debug("client connecting", zap.String("URL", u.String()))
 	return s
 }
 func (s *Sink) Close()      {}
 func (s *Sink) Wait() error { return nil }
 
-func (s *Sink) Send(m lightning.Message) error {
+func (s *Sink) Send(m lightning.Message) (err error) {
+	defer func() {
+		if err != nil {
+			s.Log.Error("send failed", zap.Error(err))
+		}
+	}()
 	req := http.Request{
 		Method: http.MethodPost,
 		URL:    s.URL,
@@ -51,15 +56,10 @@ func (s *Sink) Send(m lightning.Message) error {
 	if err := MakeMessage(m, &req); err != nil {
 		return err
 	}
-	s.Log.Debug("send",
-		zap.String("url", s.URL.String()),
-		zap.Any("headers", req.Header),
-	)
-
-	// TODO aconway 2019-01-08: get more concurrency here?
+	s.Log.Debug("sending", zap.Any("url", s.URL), zap.Any("headers", req.Header))
 	resp, err := s.Client.Do(&req)
 	if err != nil {
-		return (err)
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.Status[0] != '2' {

@@ -49,7 +49,9 @@ func (s *Sink) Add(snd electron.Sender) {
 	s.log.Debug("add", zap.String("sender", snd.String()))
 	go func() {
 		for snd.Error() == nil {
-			snd.SendForget((<-s.outgoing))
+			am := (<-s.outgoing)
+			s.log.Debug("sending", zap.Any("amqp message", am))
+			snd.SendForget(am)
 		}
 		if err := snd.Error(); err != io.EOF {
 			s.closeErr(err)
@@ -58,7 +60,6 @@ func (s *Sink) Add(snd electron.Sender) {
 }
 
 func (s *Sink) Send(m lightning.Message) (err error) {
-	s.log.Debug("send")
 	if am, err := NewMessage(m); err != nil {
 		return err
 	} else {
@@ -67,11 +68,9 @@ func (s *Sink) Send(m lightning.Message) (err error) {
 	}
 }
 
-// FIXME aconway 2019-02-01: specify allowed targets
-
 // Serve adds l to Listeners() and starts a server to Add() incoming Senders.
 func (s *Sink) Serve(l net.Listener, opts ...electron.ConnectionOption) {
-	s.log.Info("serve", zap.String("address", l.Addr().String()))
+	s.log.Debug("server listening", zap.String("address", l.Addr().String()))
 	s.listeners.Store(l, nil)
 	s.busy.Add(1)
 	opts = append(opts, electron.Server())
