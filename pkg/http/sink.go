@@ -48,10 +48,14 @@ func (s *Sink) Send(m lightning.Message) error {
 		URL:    s.URL,
 		Header: http.Header{},
 	}
-	s.Log.Debug("send", zap.String("post", s.URL.String()))
 	if err := MakeMessage(m, &req); err != nil {
 		return err
 	}
+	s.Log.Debug("send",
+		zap.String("url", s.URL.String()),
+		zap.Any("headers", req.Header),
+	)
+
 	// TODO aconway 2019-01-08: get more concurrency here?
 	resp, err := s.Client.Do(&req)
 	if err != nil {

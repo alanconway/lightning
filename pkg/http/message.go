@@ -45,11 +45,9 @@ func headerString(v interface{}) string {
 	}
 }
 
-// FIXME aconway 2019-02-01: can centralize a lot of the MakeMessage logic
-
 func MakeBinary(e lightning.Event, req *http.Request) error {
 	ct := e.ContentType()
-	b, ok := e.Data().([]byte)
+	b, ok := e.DataBytes()
 	if ct == "" || !ok { // Can't make binary event, fall back to structured JSON
 		if s, err := e.Format(lightning.JSONFormat); err != nil {
 			return err
@@ -82,15 +80,33 @@ func MakeMessage(m lightning.Message, req *http.Request) error {
 	}
 }
 
-type Message struct{ Req *http.Request }
+type Message struct {
+	header http.Header
+	body   []byte
+}
+
+func NewMessage(req *http.Request) (Message, error) {
+	if b, err := ioutil.ReadAll(req.Body); err != nil {
+		return Message{}, err
+	} else {
+		return Message{body: b, header: req.Header}, nil
+	}
+}
 
 func (m Message) Structured() *lightning.Structured {
-	if b, err := ioutil.ReadAll(m.Req.Body); err != nil {
-		return nil
-	} else if ct := m.Req.Header.Get("content-type"); lightning.IsFormat(ct) {
-		return &lightning.Structured{Bytes: b, Format: lightning.Formats.Get(ct)}
+	if ct := m.header.Get("Content-Type"); lightning.IsFormat(ct) {
+		return &lightning.Structured{Bytes: m.body, Format: lightning.Formats.Get(ct)}
 	}
 	return nil
+}
+
+func ceAttrName(httpName string) string {
+	l := strings.ToLower(httpName)
+	if strings.HasPrefix(l, cePrefix) {
+		return strings.TrimPrefix(l, cePrefix)
+	} else {
+		return ""
+	}
 }
 
 func (m Message) Event() (lightning.Event, error) {
@@ -98,21 +114,14 @@ func (m Message) Event() (lightning.Event, error) {
 		return s.Event()
 	}
 	e := make(lightning.Event)
-	for k, v := range m.Req.Header {
-		if len(v) > 0 {
-			if l := strings.ToLower(k); strings.HasPrefix(l, cePrefix) {
-				e[strings.TrimPrefix(l, cePrefix)] = v[0]
-			}
+	for k, v := range m.header {
+		if attr := ceAttrName(k); attr != "" {
+			e[attr] = v[0]
 		}
 	}
-	if ct := m.Req.Header.Get("Content-Type"); ct != "" {
+	if ct := m.header.Get("Content-Type"); ct != "" {
 		e.SetContentType(ct)
 	}
-	if m.Req.Body != http.NoBody {
-		e.SetData(m.Req.Body)
-	} else {
-		e.SetData([]byte{})
-		panic("FIXME")
-	}
+	e.SetData(m.body)
 	return e, nil
 }

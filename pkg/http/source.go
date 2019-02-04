@@ -48,7 +48,15 @@ func NewSource(log *zap.Logger) *Source {
 		incoming: make(chan lightning.Message),
 	}
 	s.Server.Handler = http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) { s.incoming <- Message{Req: r} })
+		func(w http.ResponseWriter, r *http.Request) {
+			if m, err := NewMessage(r); err != nil {
+				s.err.Set(err)
+				s.Close()
+			} else {
+				s.incoming <- m
+
+			}
+		})
 	s.Server.ErrorLog, _ = zap.NewStdLogAt(s.log, zap.ErrorLevel)
 	s.busy.Add(1) // Removed in Close()
 	return s
