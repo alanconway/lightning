@@ -32,7 +32,7 @@ func TestBinaryNative(tt *testing.T) {
 	e := lightning.Event{"specversion": "2.0", "id": "foo", "data": "hello"}
 	am := NewBinary(e)
 	t.ExpectEqual(
-		map[string]interface{}{"cloudevents:specversion": "2.0", "cloudevents:id": "foo"},
+		map[string]interface{}{"cloudEvents:specversion": "2.0", "cloudEvents:id": "foo"},
 		am.ApplicationProperties())
 	t.ExpectEqual("hello", am.Body())
 
@@ -50,7 +50,7 @@ func TestBinaryContentType(tt *testing.T) {
 	am := NewBinary(e)
 	t.ExpectEqual("text/plain", am.ContentType())
 	t.ExpectEqual(
-		map[string]interface{}{"cloudevents:specversion": "2.0"},
+		map[string]interface{}{"cloudEvents:specversion": "2.0"},
 		am.ApplicationProperties())
 	t.ExpectEqual(amqp.Binary("hello"), am.Body())
 

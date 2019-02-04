@@ -43,7 +43,7 @@ func NewBinary(e lightning.Event) amqp.Message {
 	for k, v := range e {
 		// Data and content type are set on AMQP body and content-type
 		if k != attrs.Data && k != attrs.ContentType {
-			props[cePrefix+k] = v
+			props[AttributePrefix+k] = v
 		}
 		am.SetApplicationProperties(props)
 	}
@@ -89,7 +89,9 @@ func (m Message) Structured() *lightning.Structured {
 	}
 }
 
-var cePrefix = "cloudevents:"
+// AttributePrefix is pre-pended to cloud-event attribute names when
+// then are stored as AMQP application-properties
+var AttributePrefix = "cloudEvents:"
 
 func (m Message) Event() (lightning.Event, error) {
 	if s := m.Structured(); s != nil {
@@ -97,29 +99,18 @@ func (m Message) Event() (lightning.Event, error) {
 	}
 	e := make(lightning.Event)
 	for k, v := range m.AMQP.ApplicationProperties() {
-		if strings.HasPrefix(k, cePrefix) {
-			e[strings.TrimPrefix(k, cePrefix)] = v
+		if strings.HasPrefix(k, AttributePrefix) {
+			e[strings.TrimPrefix(k, AttributePrefix)] = v
 		}
 	}
-	a := e.Names()
-	if e[a.ContentType] == nil && m.AMQP.ContentType() != "" {
-		e[a.ContentType] = m.AMQP.ContentType()
+	if ct := m.AMQP.ContentType(); ct != "" {
+		e.SetContentType(ct)
 	}
-	if e[a.ContentType] == nil { // Native data type
-		switch b := m.AMQP.Body().(type) {
-		case amqp.Binary:
-			e.SetData([]byte(b))
-		default:
-			// TODO aconway 2019-01-16: check this is a legal cloud event type
-			e.SetData(b)
-		}
-	} else { // content-type described bytes
-		var b []byte
-		if err := Unmarshal(m.AMQP, &b); err != nil {
-			return nil, err
-		} else {
-			e.SetData(b)
-		}
+	switch b := m.AMQP.Body().(type) {
+	case amqp.Binary: // Funky Binary type used by amqp package
+		e.SetData([]byte(b))
+	default:
+		e.SetData(b)
 	}
 	return e, nil
 }

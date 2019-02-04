@@ -61,6 +61,7 @@ func (s *Source) Add(r electron.Receiver) {
 		defer s.busy.Done()
 		rm, err := r.Receive()
 		for ; err == nil; rm, err = r.Receive() {
+			s.log.Debug("received", zap.Any("amqp message", rm.Message))
 			s.incoming <- Message{AMQP: rm.Message}
 			rm.Accept() // TODO aconway 2019-01-15: QoS 1, delay accept till hand-off to sink.
 		}
