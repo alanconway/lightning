@@ -20,42 +20,53 @@ under the License.
 package http
 
 import (
-	"net/http"
+	"net"
 	"net/url"
 	"testing"
 
-	"github.com/alanconway/lightning/internal/pkg/httptest"
 	"github.com/alanconway/lightning/internal/pkg/test"
 	"github.com/alanconway/lightning/pkg/lightning"
 	"go.uber.org/zap"
 )
 
-type testMsg struct {
-	e        lightning.Event
-	finished bool
-	err      error
-}
-
-func (m *testMsg) Event() (lightning.Event, error) { return m.e, nil }
-
-func (m *testMsg) Structured() *lightning.Structured {
-	if s, err := m.e.Format(lightning.JSONFormat); err == nil {
-		return s
-	} else {
-		return nil
-	}
-}
-
-func TestSink(tt *testing.T) {
+func TestSinkSource(tt *testing.T) {
 	t := test.New(tt)
+	logger, _ := zap.NewDevelopment()
 
-	hs := httptest.NewServer()
-	defer hs.Close()
+	// Client sink connects to server source.
+	l, err := net.Listen("tcp", ":0")
+	t.RequireNil(err)
+	defer l.Close()
+	source := NewSource(1, logger)
+	source.Start(l)
+	defer source.Close()
 
-	s := &Sink{URL: &url.URL{Scheme: "http", Host: hs.Addr}, Client: &http.Client{}, Log: zap.NewNop()}
-	go s.Send(&testMsg{e: lightning.Event{"specversion": "2.0", "data": "hello"}})
+	sink := NewSink(&url.URL{Scheme: "http", Host: l.Addr().String()}, nil, logger)
+	defer sink.Close()
 
-	got := <-hs.Incoming
-	t.ExpectEqual(lightning.JSONFormat.Name(), got.Header.Get("Content-Type"))
-	t.ExpectEqual(`{"data":"hello","specversion":"2.0"}`, string(got.Body))
+	// Binary message
+	e := lightning.Event{"specversion": "0.2", "data": []byte("binary"), "contenttype": "text/plain"}
+	sink.Send(e)
+	got, err := source.Receive()
+	t.RequireNil(err)
+	sm := got.Structured()
+	t.Expectf(sm == nil, "unexpected structured message: %#v", sm)
+	if e2, err := got.Event(); err != nil {
+		t.Error(err)
+	} else {
+		t.ExpectEqual(e, e2)
+	}
+
+	// Structured message
+	bytes := []byte(`{"data":"structured","specversion":"0.2","contenttype":"text/plain"}`)
+	sm = &lightning.Structured{Format: lightning.JSONFormat, Bytes: bytes}
+	t.RequireNil(sink.Send(sm))
+	if got, err = source.Receive(); err != nil {
+		t.Error(err)
+	} else {
+		sm2 := got.Structured()
+		t.Requiref(sm != nil, "unexpected structured message: %#v", sm)
+		t.ExpectEqual(lightning.JSONFormat.Name(), sm2.Format.Name())
+		t.ExpectEqual(string(bytes), string(sm2.Bytes))
+	}
 }

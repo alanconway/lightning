@@ -42,10 +42,10 @@ type Source struct {
 	err       lightning.AtomicError
 }
 
-func NewSource(log *zap.Logger) *Source {
+func NewSource(capacity int, log *zap.Logger) *Source {
 	s := &Source{
 		log:      log.Named(lightning.UniqueID("http-source")),
-		incoming: make(chan lightning.Message),
+		incoming: make(chan lightning.Message, capacity),
 	}
 	s.Server.Handler = http.HandlerFunc(
 		func(w http.ResponseWriter, req *http.Request) {
@@ -62,7 +62,12 @@ func NewSource(log *zap.Logger) *Source {
 	return s
 }
 
-func (s *Source) Receive() (lightning.Message, error) {
+func (s *Source) Receive() (m lightning.Message, err error) {
+	defer func() {
+		if err != nil {
+			s.log.Error("receive failed", zap.Error(err))
+		}
+	}()
 	if m, ok := <-s.incoming; ok {
 		return m, nil
 	} else {
@@ -70,7 +75,13 @@ func (s *Source) Receive() (lightning.Message, error) {
 	}
 }
 
-func (s *Source) Close()      { s.Server.Shutdown(nil); s.err.Set(io.EOF); s.busy.Done() }
+func (s *Source) Close() {
+	s.log.Debug("closing", zap.Error(s.err.Get()))
+	s.Server.Shutdown(nil)
+	s.err.Set(io.EOF)
+	s.busy.Done()
+}
+
 func (s *Source) Wait() error { s.busy.Wait(); return s.err.Get() }
 
 // Start serving a listener, returns immediately.
