@@ -22,6 +22,7 @@ package mqtt
 
 import (
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -57,6 +58,7 @@ func NewSourceConfig() *SourceConfig {
 		ClientID:             clientid,
 		AutoReconnect:        true,
 		MaxReconnectInterval: time.Second,
+		Filters:              make(map[string]byte),
 	}
 	return sc
 }
@@ -117,6 +119,7 @@ func (s *Source) retryConnect(retry bool, max time.Duration, sleep time.Duration
 	if s.err != nil {
 		return s.err
 	}
+	s.log.Debug("subscribing", zap.Any("filters", s.config.Filters))
 	if err := waitErr(s.client.SubscribeMultiple(s.config.Filters, s.onMessage)); err != nil {
 		s.log.Error("cannot subscribe", zap.Error(err))
 		s.closeErr(err, true)
@@ -151,11 +154,16 @@ func (s *Source) closeErr(err error, disconnect bool) {
 }
 
 func (s *Source) onMessage(c paho.Client, m paho.Message) {
+	s.log.Debug("received", zap.String("topic", m.Topic()))
 	s.incoming <- message(m.Payload())
 }
 
 func (s *Source) onConnectionLost(c paho.Client, err error) {
-	s.log.Warn("Connection lost", zap.Error(err))
+	if err == io.EOF {
+		s.log.Debug("Connection closed")
+	} else {
+		s.log.Warn("Connection lost", zap.Error(err))
+	}
 	s.closeErr(err, false)
 }
 
