@@ -60,16 +60,16 @@ func TestEventData(tt *testing.T) {
 	t.ExpectEqual(e.Data(), []byte{32})
 }
 
-func TestEventFormat(tt *testing.T) {
+func TestEventStructuredAs(tt *testing.T) {
 	t := test.New(tt)
 
 	e := Event{"data": "hello", "specversion": "2.0", "contenttype": "text/plain"}
-	s, err := e.Format(JSONFormat)
+	s, err := e.StructuredAs(JSONFormat)
 	t.ExpectNil(err)
 	t.ExpectEqual("application/cloudevents+json", s.Format.Name())
 	t.ExpectEqual(`{"contenttype":"text/plain","data":"hello","specversion":"2.0"}`, string(s.Bytes))
 	// Make a new structured event since we've consumed the data in this one
-	s, err = e.Format(JSONFormat)
+	s, err = e.StructuredAs(JSONFormat)
 	e2, err := s.Event()
 	t.ExpectNil(err)
 	t.ExpectEqual(e, e2)

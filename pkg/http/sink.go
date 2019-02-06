@@ -35,9 +35,6 @@ type Sink struct {
 }
 
 func NewSink(u *url.URL, c *http.Client, l *zap.Logger) *Sink {
-	if c == nil {
-		c = &http.Client{}
-	}
 	s := &Sink{URL: u, Client: c, Log: l.Named(lightning.UniqueID("http-sink"))}
 	s.Log.Debug("client connecting", zap.String("URL", u.String()))
 	return s

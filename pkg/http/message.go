@@ -49,7 +49,7 @@ func MakeBinary(e lightning.Event, req *http.Request) error {
 	ct := e.ContentType()
 	b, ok := e.DataBytes()
 	if ct == "" || !ok { // Can't make binary event, fall back to structured JSON
-		if s, err := e.Format(lightning.JSONFormat); err != nil {
+		if s, err := e.StructuredAs(lightning.JSONFormat); err != nil {
 			return err
 		} else {
 			MakeStructured(s, req)

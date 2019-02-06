@@ -45,7 +45,7 @@ func numberEvent(number float64) lightning.Event {
 }
 
 func structured(e lightning.Event) *lightning.Structured {
-	if s, err := e.Format(lightning.JSONFormat); err == nil {
+	if s, err := e.StructuredAs(lightning.JSONFormat); err == nil {
 		return s
 	} else {
 		panic(err)

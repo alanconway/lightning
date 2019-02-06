@@ -74,11 +74,7 @@ func (e Event) SetContentType(ct string) { e[e.Names().ContentType] = ct }
 func (e Event) Data() interface{}     { return e[data] }
 func (e Event) SetData(v interface{}) { e[data] = v }
 
-// FIXME aconway 2019-02-01: name of Format vs. Structured? Structured not a noun?
-// FIXME aconway 2019-02-01: reader/bytes as a type, use for both
-// event and structured...
-
-func (e Event) Format(f Format) (*Structured, error) {
+func (e Event) StructuredAs(f Format) (*Structured, error) {
 	if b, err := f.Marshal(e); err != nil {
 		return nil, err
 	} else {

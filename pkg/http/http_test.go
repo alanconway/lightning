@@ -21,6 +21,7 @@ package http
 
 import (
 	"net"
+	"net/http"
 	"net/url"
 	"testing"
 
@@ -41,7 +42,7 @@ func TestSinkSource(tt *testing.T) {
 	source.Start(l)
 	defer source.Close()
 
-	sink := NewSink(&url.URL{Scheme: "http", Host: l.Addr().String()}, nil, logger)
+	sink := NewSink(&url.URL{Scheme: "http", Host: l.Addr().String()}, &http.Client{}, logger)
 	defer sink.Close()
 
 	// Binary message
