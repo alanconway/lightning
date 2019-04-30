@@ -1,6 +1,6 @@
-**NOTE UNSTABLE EXPERIMENTAL CODE**
+# OBSOLETE
 
-# Lightning connects the clouds
+See https://github.com/alanconway/lightning2
 
 Lightning is a multi-protocol, multi-format library for building
 cloud-event sources and sinks.
