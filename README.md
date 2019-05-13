@@ -1,6 +1,8 @@
-# OBSOLETE
+**OBSOLETE - historical interest only**
 
-See https://github.com/alanconway/lightning2
+https://github.com/cloudevents/sdk-go now has most of the features that lightning was aiming to provide, so this work is obsolete.
+
+----
 
 Lightning is a multi-protocol, multi-format library for building
 cloud-event sources and sinks.
